@@ -1,40 +1,55 @@
 import './index.css'
-  import { useState, useEffect } from 'react'
-  import { createClient } from '@supabase/supabase-js'
-  import { Auth } from '@supabase/auth-ui-react'
-  import { ThemeSupa } from '@supabase/auth-ui-shared'
+import { useState, useEffect } from 'react'
+import { Auth } from '@supabase/auth-ui-react'
+import { ThemeSupa } from '@supabase/auth-ui-shared'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { supabase } from './supabaseclient'
+import Home from './pages/Home'
+import ProtectedRoute from './components/protectedRoutes'
 
-  // use Vite env vars (must be prefixed with VITE_)
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// ...existing code...
+const App = () => {
+  const [session, setSession] = useState(null)
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment')
-  }
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
 
-  const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
 
-  export default function App() {
-    const [session, setSession] = useState(null)
+    return () => subscription.unsubscribe()
+  }, [])
 
-    useEffect(() => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session)
-      })
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            session ? (
+              <Navigate to="/home" replace />
+            ) : (
+              <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />
+            )
+          }
+        />
+        <Route
+          path="/home"
+          element={
+            <ProtectedRoute session={session}>
+              <Home session={session} />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  )
+}
 
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session)
-      })
-
-      return () => subscription.unsubscribe()
-    }, [])
-
-    if (!session) {
-      return (<Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />)
-    }
-    else {
-      return (<div>Logged in!</div>)
-    }
-  }
+export default App
+// ...existing code...
