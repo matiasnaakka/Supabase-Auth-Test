@@ -1,9 +1,9 @@
-import { supabase } from '../supabaseclient'
+import React from 'react'
 import NavBar from '../components/NavBar'
+import { supabase } from '../supabaseclient'
 
-export default function Home({ session }) {
-
-  const email = session?.user?.email ?? 'user'
+export default function Profile({ session }) {
+  const user = session?.user
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -13,8 +13,9 @@ export default function Home({ session }) {
     <>
       <NavBar session={session} onSignOut={handleSignOut} />
       <div style={{ padding: 24, textAlign: 'center', marginTop: '80px' }}>
-        <h1>Welcome, {email}</h1>
-        <p>This is the protected home page.</p>
+        <h1>Profile</h1>
+        <p>Email: {user?.email}</p>
+        <p>User ID: {user?.id}</p>
       </div>
     </>
   )

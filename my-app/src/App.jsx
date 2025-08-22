@@ -7,6 +7,7 @@ import { supabase } from './supabaseclient'
 import Home from './pages/Home'
 import ProtectedRoute from './components/protectedRoutes'
 import LoginLayout from './components/LoginLayout'
+import Profile from './pages/Profile'
 
 const App = () => {
   const [session, setSession] = useState(null)
@@ -47,6 +48,14 @@ const App = () => {
           element={
             <ProtectedRoute session={session}>
               <Home session={session} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute session={session}>
+              <Profile session={session} />
             </ProtectedRoute>
           }
         />
