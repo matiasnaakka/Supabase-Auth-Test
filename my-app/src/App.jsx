@@ -6,14 +6,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabaseclient'
 import Home from './pages/Home'
 import ProtectedRoute from './components/protectedRoutes'
+import LoginLayout from './components/LoginLayout'
 
-// ...existing code...
 const App = () => {
   const [session, setSession] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      setLoading(false)
     })
 
     const {
@@ -34,7 +36,9 @@ const App = () => {
             session ? (
               <Navigate to="/home" replace />
             ) : (
-              <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} />
+              <LoginLayout>
+                <Auth supabaseClient={supabase} appearance={{ theme: ThemeSupa }} providers={[]} />
+              </LoginLayout>
             )
           }
         />
@@ -52,4 +56,3 @@ const App = () => {
 }
 
 export default App
-// ...existing code...

@@ -8,11 +8,16 @@ export default function Home({ session }) {
     await supabase.auth.signOut()
   }
 
+  let moro = 12;
+
+  
+
   return (
     <div style={{ padding: 24, textAlign: 'center' }}>
       <h1>Welcome, {email}</h1>
       <p>This is the protected home page.</p>
       <button onClick={handleSignOut}>Sign out</button>
+      
     </div>
   )
 }
