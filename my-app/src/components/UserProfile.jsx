@@ -34,19 +34,48 @@ const UserProfile = ({ session }) => {
     const file = e.target.files[0]
     if (!file) return
     setLoading(true)
-    // Upload avatar to Supabase Storage (assumes 'avatars' bucket exists)
-    const { data, error: uploadError } = await supabase.storage
+    
+    // Use a stable filename to avoid special characters
+    const path = `${session.user.id}/avatar.png`
+    
+    // Upload avatar to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(`${session.user.id}/${file.name}`, file, { upsert: true })
+      .upload(path, file, { upsert: true })
+      
     if (uploadError) {
       setError(uploadError.message)
       setLoading(false)
       return
     }
-    const avatarUrl = supabase.storage
+    
+    // Get the public URL
+    const { data: urlData } = supabase.storage
       .from('avatars')
-      .getPublicUrl(`${session.user.id}/${file.name}`).data.publicUrl
-    setProfile({ ...profile, avatar_url: avatarUrl })
+      .getPublicUrl(path)
+    const avatarUrl = urlData.publicUrl
+    
+    // Persist to database immediately
+    const updates = { 
+      id: session.user.id,
+      username: profile.username || 'user_' + session.user.id.substring(0, 8), // Ensure username is not null
+      avatar_url: avatarUrl,
+      updated_at: new Date() 
+    }
+    
+    // Update the profile in the database
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .upsert(updates, { onConflict: ['id'] })
+      
+    if (dbError) {
+      setError(dbError.message)
+      setLoading(false)
+      return
+    }
+    
+    // Update local state so UI reflects change immediately
+    setProfile(prev => ({ ...prev, avatar_url: avatarUrl }))
     setLoading(false)
   }
 
