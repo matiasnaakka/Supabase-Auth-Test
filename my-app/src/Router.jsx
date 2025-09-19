@@ -14,6 +14,9 @@ const Routing = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Set loading state to true while we check for an existing session
+    setLoading(true)
+    
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
@@ -23,6 +26,7 @@ const Routing = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      setLoading(false)
     })
 
     return () => subscription.unsubscribe()
@@ -34,7 +38,9 @@ const Routing = () => {
         <Route
           path="/"
           element={
-            session ? (
+            loading ? (
+              <div>Loading...</div>
+            ) : session ? (
               <Navigate to="/home" replace />
             ) : (
               <LoginLayout>
@@ -46,7 +52,7 @@ const Routing = () => {
         <Route
           path="/home"
           element={
-            <ProtectedRoute session={session}>
+            <ProtectedRoute session={session} loading={loading}>
               <Home session={session} />
             </ProtectedRoute>
           }
@@ -54,7 +60,7 @@ const Routing = () => {
         <Route
           path="/profile"
           element={
-            <ProtectedRoute session={session}>
+            <ProtectedRoute session={session} loading={loading}>
               <Profile session={session} />
             </ProtectedRoute>
           }

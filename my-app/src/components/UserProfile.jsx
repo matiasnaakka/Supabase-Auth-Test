@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 
-const Profile = ({ session }) => {
+const UserProfile = ({ session }) => {
   const [profile, setProfile] = useState({
     username: '',
     bio: '',
@@ -93,7 +93,7 @@ const Profile = ({ session }) => {
             name="username"
             value={profile.username}
             onChange={handleChange}
-            className="w-full p-2 rounded text-black"
+            className="w-full p-2 rounded text-white"
             required
           />
         </label>
@@ -103,7 +103,7 @@ const Profile = ({ session }) => {
             name="bio"
             value={profile.bio}
             onChange={handleChange}
-            className="w-full p-2 rounded text-black"
+            className="w-full p-2 rounded text-white"
             rows={3}
           />
         </label>
@@ -114,12 +114,12 @@ const Profile = ({ session }) => {
             name="location"
             value={profile.location}
             onChange={handleChange}
-            className="w-full p-2 rounded text-black"
+            className="w-full p-2 rounded text-white"
           />
         </label>
         <button
           type="submit"
-          className="bg-teal-400 text-black px-4 py-2 rounded font-bold hover:bg-teal-300"
+          className="bg-teal-400 text-white px-4 py-2 rounded font-bold hover:bg-teal-300"
           disabled={loading}
         >
           {loading ? 'Saving...' : 'Update Profile'}
@@ -129,4 +129,4 @@ const Profile = ({ session }) => {
   )
 }
 
-export default Profile
+export default UserProfile
