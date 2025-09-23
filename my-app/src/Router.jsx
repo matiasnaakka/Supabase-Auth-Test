@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { supabase } from './supabaseClient'
+import { supabase } from './supabaseclient'
 import Home from './pages/Home'
 import ProtectedRoute from './components/protectedRoutes'
 import LoginLayout from './components/LoginLayout'
 import Profile from './pages/Profile'
+import Upload from './pages/Upload'
 
 const Routing = () => {
   const [session, setSession] = useState(null)
@@ -62,6 +63,14 @@ const Routing = () => {
           element={
             <ProtectedRoute session={session} loading={loading}>
               <Profile session={session} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upload"
+          element={
+            <ProtectedRoute session={session} loading={loading}>
+              <Upload session={session} />
             </ProtectedRoute>
           }
         />

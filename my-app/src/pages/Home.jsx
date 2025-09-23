@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient'
+import { supabase } from '../supabaseclient'
 import NavBar from '../components/NavBar'
 
 export default function Home({ session }) {

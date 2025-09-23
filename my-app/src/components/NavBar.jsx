@@ -1,24 +1,69 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-const NavBar = ({ session, onSignOut }) => (
-  <nav className="w-full flex items-center justify-between px-6 py-4 bg-black bg-opacity-80 fixed top-0 left-0 z-30">
-    <span className="text-white font-['Lalezar'] text-2xl">Kohina</span>
-    {session && (
-      <div className="flex items-center gap-4">
-        <Link to="/profile" className="text-white hover:underline">
-          Profile
-        </Link>
-        <span className="text-white">{session.user.email}</span>
-        <button
-          onClick={onSignOut}
-          className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
-        >
-          Sign out
-        </button>
-      </div>
-    )}
-  </nav>
-)
+const NavBar = ({ session, onSignOut }) => {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+
+  const handleSignOutClick = (e) => {
+    e.preventDefault()
+    setShowLogoutConfirm(true)
+  }
+
+  const confirmSignOut = () => {
+    onSignOut()
+    setShowLogoutConfirm(false)
+  }
+
+  const cancelSignOut = () => {
+    setShowLogoutConfirm(false)
+  }
+
+  return (
+    <nav className="w-full flex items-center justify-between px-6 py-4 bg-black bg-opacity-80 fixed top-0 left-0 z-30">
+      <span className="text-white font-['Lalezar'] text-2xl">Kohina</span>
+      {session && (
+        <div className="flex items-center gap-4">
+          <Link to="/profile" className="text-white hover:underline">
+            Profile
+          </Link>
+          <Link to="/upload" className="text-white hover:underline">
+            Upload
+          </Link>
+          <span className="text-white">{session.user.email}</span>
+          <button
+            onClick={handleSignOutClick}
+            className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
+          >
+            Sign out
+          </button>
+
+          {showLogoutConfirm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white p-4 rounded-md shadow-lg">
+                <h3 className="text-lg font-semibold mb-2">Confirm Sign Out</h3>
+                <p className="mb-4">Are you sure you want to sign out?</p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={cancelSignOut}
+                    className="px-3 py-1 bg-gray-200 rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmSignOut}
+                    className="px-3 py-1 bg-red-500 text-white rounded"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </nav>
+  )
+}
 
 export default NavBar
+

@@ -1,6 +1,6 @@
 import React from 'react'
 import NavBar from '../components/NavBar'
-import { supabase } from '../supabaseClient'
+import { supabase } from '../supabaseclient'
 import UserProfile from '../components/UserProfile'
 
 
