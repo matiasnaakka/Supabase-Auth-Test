@@ -10,6 +10,8 @@ const UserProfile = ({ session }) => {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+  const [avatarKey, setAvatarKey] = useState(Date.now()) // Add a key to force image refresh
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -33,87 +35,146 @@ const UserProfile = ({ session }) => {
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+    
+    // Clear previous messages
+    setError(null)
+    setSuccess(null)
     setLoading(true)
     
-    // Use a stable filename to avoid special characters
-    const path = `${session.user.id}/avatar.png`
-    
-    // Upload avatar to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true })
+    try {
+      // Use a stable filename with timestamp to avoid caching issues
+      const timestamp = Date.now()
+      const path = `${session.user.id}/avatar-${timestamp}.png`
       
-    if (uploadError) {
-      setError(uploadError.message)
-      setLoading(false)
-      return
-    }
-    
-    // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(path)
-    const avatarUrl = urlData.publicUrl
-    
-    // Persist to database immediately
-    const updates = { 
-      id: session.user.id,
-      username: profile.username || 'user_' + session.user.id.substring(0, 8), // Ensure username is not null
-      avatar_url: avatarUrl,
-      updated_at: new Date() 
-    }
-    
-    // Update the profile in the database
-    const { error: dbError } = await supabase
-      .from('profiles')
-      .upsert(updates, { onConflict: ['id'] })
+      console.log('Uploading avatar...', file.name)
       
-    if (dbError) {
-      setError(dbError.message)
+      // Upload avatar to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true })
+        
+      if (uploadError) {
+        throw new Error(`Upload error: ${uploadError.message}`)
+      }
+      
+      // Get the public URL with cache busting parameter
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(path)
+      
+      const avatarUrl = `${urlData.publicUrl}?t=${timestamp}`
+      
+      console.log('Avatar uploaded, URL:', avatarUrl)
+      
+      // Persist to database immediately
+      const updates = { 
+        id: session.user.id,
+        username: profile.username || 'user_' + session.user.id.substring(0, 8), // Ensure username is not null
+        avatar_url: urlData.publicUrl, // Store the clean URL in the database
+        updated_at: new Date() 
+      }
+      
+      // Update the profile in the database
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .upsert(updates, { onConflict: ['id'] })
+        
+      if (dbError) {
+        throw new Error(`Database error: ${dbError.message}`)
+      }
+      
+      // Force image refresh by updating the key
+      setAvatarKey(timestamp)
+      
+      // Update local state with the cache-busted URL
+      setProfile(prev => ({ ...prev, avatar_url: avatarUrl }))
+      
+      // Set success message
+      setSuccess('Avatar updated successfully!')
+      
+      console.log('Avatar update complete!')
+    } catch (err) {
+      console.error('Avatar update failed:', err)
+      setError(err.message)
+    } finally {
       setLoading(false)
-      return
     }
-    
-    // Update local state so UI reflects change immediately
-    setProfile(prev => ({ ...prev, avatar_url: avatarUrl }))
-    setLoading(false)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Clear previous messages
+    setError(null)
+    setSuccess(null)
     setLoading(true)
-    const updates = {
-      ...profile,
-      id: session.user.id,
-      updated_at: new Date()
+    
+    try {
+      const updates = {
+        ...profile,
+        id: session.user.id,
+        updated_at: new Date()
+      }
+      
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(updates, { onConflict: ['id'] })
+      
+      if (error) {
+        throw new Error(error.message)
+      }
+      
+      setSuccess('Profile updated successfully!')
+    } catch (err) {
+      console.error('Profile update error:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-    const { error } = await supabase
-      .from('profiles')
-      .upsert(updates, { onConflict: ['id'] })
-    if (error) setError(error.message)
-    setLoading(false)
   }
 
   if (!session) return <div>Please log in to view your profile.</div>
-  if (loading) return <div>Loading...</div>
+  if (loading && !profile.username) return <div>Loading...</div>
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-black bg-opacity-80 rounded-lg text-white">
       <h2 className="text-2xl font-bold mb-4">Profile</h2>
-      {error && <div className="text-red-500 mb-2">{error}</div>}
+      
+      {/* Status messages */}
+      {error && (
+        <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="bg-green-500 bg-opacity-25 text-green-100 p-3 rounded mb-4">
+          {success}
+        </div>
+      )}
+      
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col items-center">
           <img
-            src={profile.avatar_url || '/default-avatar.png'}
+            key={avatarKey} // Add key to force re-render when updated
+            src={profile.avatar_url ? `${profile.avatar_url}?t=${avatarKey}` : '/default-avatar.png'}
             alt="Avatar"
             className="w-24 h-24 rounded-full mb-2 object-cover"
+            onError={(e) => {
+              console.log('Error loading avatar, falling back to default')
+              e.target.src = '/default-avatar.png'
+            }}
           />
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleAvatarChange}
-            className="text-white"
-          />
+          <div className="flex flex-col items-center">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="text-white"
+              id="avatar-upload"
+            />
+            {loading && <p className="text-sm text-gray-400 mt-1">Uploading...</p>}
+          </div>
         </div>
         <label>
           Username

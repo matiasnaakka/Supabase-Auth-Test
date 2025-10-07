@@ -49,7 +49,7 @@ const SignedAudioPlayer = ({ audioPath, trackId }) => {
 export default function Upload({ session }) {
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
-  const [genre, setGenre] = useState('')
+  const [genreId, setGenreId] = useState(null)
   const [album, setAlbum] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [file, setFile] = useState(null)
@@ -58,20 +58,52 @@ export default function Upload({ session }) {
   const [success, setSuccess] = useState(null)
   const [tracks, setTracks] = useState([])
   const [loadingTracks, setLoadingTracks] = useState(false)
+  const [genres, setGenres] = useState([])
+  const [loadingGenres, setLoadingGenres] = useState(false)
   
-  // Fetch user's tracks
+  // Fetch user's tracks and genres
   useEffect(() => {
     if (session) {
       fetchUserTracks()
+      fetchGenres()
     }
   }, [session])
+  
+  const fetchGenres = async () => {
+    setLoadingGenres(true)
+    try {
+      const { data, error } = await supabase
+        .from('genres')
+        .select('id, name, description')
+        .order('name', { ascending: true })
+      
+      if (error) {
+        console.error('Error fetching genres:', error)
+        setError(`Error loading genres: ${error.message}`)
+      } else {
+        console.log('Genres fetched successfully:', data)
+        setGenres(data || [])
+      }
+    } catch (err) {
+      console.error('Exception when fetching genres:', err)
+      setError(`Failed to load genres: ${err.message}`)
+    } finally {
+      setLoadingGenres(false)
+    }
+  }
   
   const fetchUserTracks = async () => {
     setLoadingTracks(true)
     try {
       const { data, error } = await supabase
         .from('tracks')
-        .select('*')
+        .select(`
+          *,
+          genres (
+            name,
+            description
+          )
+        `)
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
       
@@ -96,6 +128,10 @@ export default function Upload({ session }) {
     setFile(selectedFile)
   }
   
+  const handleGenreSelect = (id) => {
+    setGenreId(id === genreId ? null : id) // Toggle selection
+  }
+  
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -106,6 +142,11 @@ export default function Upload({ session }) {
     
     if (!title || !artist) {
       setError('Title and artist are required')
+      return
+    }
+    
+    if (!genreId) {
+      setError('Please select a genre for your track')
       return
     }
     
@@ -147,7 +188,7 @@ export default function Upload({ session }) {
         user_id: session.user.id,
         title,
         artist,
-        genre,
+        genre_id: genreId, // Use the selected genre ID
         album,
         audio_path: filePath,
         mime_type: file.type,
@@ -168,7 +209,7 @@ export default function Upload({ session }) {
       // 4. Reset form and show success message
       setTitle('')
       setArtist('')
-      setGenre('')
+      setGenreId(null)
       setAlbum('')
       setFile(null)
       setSuccess('Track uploaded successfully!')
@@ -280,15 +321,6 @@ export default function Upload({ session }) {
               />
             </div>
             <div>
-              <label className="block mb-1">Genre</label>
-              <input
-                type="text"
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full p-2 rounded bg-gray-800 text-white"
-              />
-            </div>
-            <div>
               <label className="block mb-1">Album</label>
               <input
                 type="text"
@@ -297,6 +329,36 @@ export default function Upload({ session }) {
                 className="w-full p-2 rounded bg-gray-800 text-white"
               />
             </div>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block mb-2">Genre *</label>
+            {loadingGenres ? (
+              <div className="p-2 rounded bg-gray-800 text-gray-400">Loading genres...</div>
+            ) : genres.length === 0 ? (
+              <div className="p-2 rounded bg-gray-800 text-gray-400">No genres available</div>
+            ) : (
+              <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 rounded bg-gray-800">
+                {genres.map((genre) => (
+                  <button
+                    key={genre.id}
+                    type="button"
+                    onClick={() => handleGenreSelect(genre.id)}
+                    className={`px-3 py-1 rounded text-sm ${
+                      genreId === genre.id
+                        ? 'bg-teal-400 text-black'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    }`}
+                    title={genre.description}
+                  >
+                    {genre.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!loadingGenres && genreId === null && (
+              <p className="text-red-400 text-sm mt-1">Please select a genre</p>
+            )}
           </div>
           
           <div className="mb-4">
@@ -325,7 +387,7 @@ export default function Upload({ session }) {
           <button
             type="submit"
             className="bg-teal-400 text-white px-4 py-2 rounded font-bold hover:bg-teal-300"
-            disabled={loading}
+            disabled={loading || genreId === null}
           >
             {loading ? 'Uploading...' : 'Upload Track'}
           </button>
@@ -345,7 +407,7 @@ export default function Upload({ session }) {
                   <h3 className="font-bold">{track.title}</h3>
                   <p>{track.artist} {track.album ? `• ${track.album}` : ''}</p>
                   <p className="text-sm text-gray-400">
-                    {track.genre || 'No genre'} • {track.is_public ? 'Public' : 'Private'}
+                    {track.genres ? track.genres.name : 'No genre'} • {track.is_public ? 'Public' : 'Private'}
                     {track.mime_type && ` • ${track.mime_type.split('/')[1]}`}
                     {track.file_size && ` • ${Math.round(track.file_size / 1024)} KB`}
                   </p>

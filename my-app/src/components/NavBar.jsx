@@ -20,9 +20,12 @@ const NavBar = ({ session, onSignOut }) => {
 
   return (
     <nav className="w-full flex items-center justify-between px-6 py-4 bg-black bg-opacity-80 fixed top-0 left-0 z-30">
-      <span className="text-white font-['Lalezar'] text-2xl">Kohina</span>
+      <Link to="/home" className="text-white font-['Lalezar'] text-2xl">Kohina</Link>
       {session && (
         <div className="flex items-center gap-4">
+          <Link to="/home" className="text-white hover:underline">
+            Home
+          </Link>
           <Link to="/profile" className="text-white hover:underline">
             Profile
           </Link>
