@@ -48,9 +48,20 @@ export default function Profile({ session }) {
   const [followerCount, setFollowerCount] = useState(0)
   const [publicFollowingCount, setPublicFollowingCount] = useState(0)
   const [followError, setFollowError] = useState(null)
+
+  // Own tracks state (unchanged)
   const [ownTracks, setOwnTracks] = useState([])
   const [ownTracksLoading, setOwnTracksLoading] = useState(false)
   const [ownTracksError, setOwnTracksError] = useState(null)
+
+  // NEW: Own header state to mirror public header
+  const [ownProfile, setOwnProfile] = useState(null)
+  const [ownFollowerCount, setOwnFollowerCount] = useState(0)
+  const [ownFollowingCount, setOwnFollowingCount] = useState(0)
+  const [ownHeaderLoading, setOwnHeaderLoading] = useState(false)
+  const [ownHeaderError, setOwnHeaderError] = useState(null)
+
+  const [showSettings, setShowSettings] = useState(false)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -188,6 +199,57 @@ export default function Profile({ session }) {
     return () => { isMounted = false }
   }, [isOwnProfile, session?.user?.id])
 
+  // NEW: Fetch own profile header data (same fields and counts as public header)
+  useEffect(() => {
+    if (!isOwnProfile || !session?.user?.id) {
+      setOwnProfile(null)
+      setOwnFollowerCount(0)
+      setOwnFollowingCount(0)
+      setOwnHeaderError(null)
+      setOwnHeaderLoading(false)
+      return
+    }
+
+    let isMounted = true
+    const fetchOwnHeader = async () => {
+      setOwnHeaderLoading(true)
+      setOwnHeaderError(null)
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('username, bio, location, avatar_url')
+          .eq('id', session.user.id)
+          .single()
+        if (profileError) throw profileError
+
+        const { count: followers = 0, error: followersError } = await supabase
+          .from('followers')
+          .select('follower_id', { count: 'exact', head: true })
+          .eq('followed_id', session.user.id)
+        if (followersError) throw followersError
+
+        const { count: following = 0, error: followingError } = await supabase
+          .from('followers')
+          .select('followed_id', { count: 'exact', head: true })
+          .eq('follower_id', session.user.id)
+        if (followingError) throw followingError
+
+        if (isMounted) {
+          setOwnProfile(profileData)
+          setOwnFollowerCount(followers)
+          setOwnFollowingCount(following)
+        }
+      } catch (err) {
+        if (isMounted) setOwnHeaderError(err.message)
+      } finally {
+        if (isMounted) setOwnHeaderLoading(false)
+      }
+    }
+
+    fetchOwnHeader()
+    return () => { isMounted = false }
+  }, [isOwnProfile, session?.user?.id])
+
   const handleFollowToggle = async () => {
     if (!session?.user?.id || !targetUserId) return
     setFollowError(null)
@@ -220,61 +282,109 @@ export default function Profile({ session }) {
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-black text-white">
       <NavBar session={session} onSignOut={handleSignOut} />
       {isOwnProfile ? (
         <>
-          <UserProfile session={session} />
-          <div className="max-w-4xl mx-auto mt-8 p-6 bg-black bg-opacity-80 rounded-lg text-white">
-            <h3 className="text-2xl font-bold mb-4">Your Tracks</h3>
-            {ownTracksLoading ? (
-              <div>Loading your tracks...</div>
-            ) : ownTracksError ? (
-              <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded">
-                {ownTracksError}
-              </div>
-            ) : ownTracks.length === 0 ? (
-              <div className="text-gray-300 bg-gray-800 p-4 rounded">
-                You haven't uploaded any tracks yet.
-              </div>
+          {/* Unified header + tracks container (same as public layout) */}
+          <div className="max-w-4xl mx-auto mt-16 p-6 bg-black bg-opacity-80 rounded-lg text-white">
+            {ownHeaderLoading ? (
+              <div>Loading profile...</div>
+            ) : ownHeaderError ? (
+              <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded">{ownHeaderError}</div>
+            ) : !ownProfile ? (
+              <div className="text-gray-300">Profile not found.</div>
             ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {ownTracks.map((track) => (
-                  <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white">
-                    <div className="flex flex-col md:flex-row justify-between">
-                      <div>
-                        <h4 className="font-bold text-lg">{track.title}</h4>
-                        <p className="text-gray-300">
-                          {track.artist} {track.album ? `• ${track.album}` : ''}
-                        </p>
-                        <div className="flex gap-2 items-center mt-1 flex-wrap">
-                          <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                            {track.genres ? track.genres.name : 'No genre'}
-                          </span>
-                          <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                            {track.is_public ? 'Public' : 'Private'}
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            {formatDate(track.created_at)}
-                          </span>
+              <>
+                <div className="flex flex-col md:flex-row items-start gap-4 mb-6">
+                  <img
+                    src={ownProfile.avatar_url || '/default-avatar.png'}
+                    alt={`${ownProfile.username}'s avatar`}
+                    className="w-24 h-24 object-cover"
+                    onError={(e) => { e.target.src = '/default-avatar.png' }}
+                  />
+                  <div className="flex-1">
+                    <h2 className="text-3xl font-bold mb-1">{ownProfile.username}</h2>
+                    {ownProfile.location && (
+                      <p className="text-sm text-gray-300 mb-2">{ownProfile.location}</p>
+                    )}
+                    {ownProfile.bio && (
+                      <p className="text-gray-200 whitespace-pre-line">{ownProfile.bio}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-start md:items-end gap-2 md:ml-auto">
+                    <button
+                      onClick={() => setShowSettings(true)}
+                      className="px-4 py-2 rounded font-semibold bg-gray-700 text-white hover:bg-gray-600"
+                    >
+                      Settings
+                    </button>
+                    <span className="text-xs text-gray-400">
+                      {ownFollowerCount === 1 ? '1 follower' : `${ownFollowerCount} followers`} • Following {ownFollowingCount}
+                    </span>
+                  </div>
+                </div>
+
+                <h3 className="text-2xl font-bold mb-4">Tracks</h3>
+                {ownTracksLoading ? (
+                  <div>Loading your tracks...</div>
+                ) : ownTracksError ? (
+                  <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded">
+                    {ownTracksError}
+                  </div>
+                ) : ownTracks.length === 0 ? (
+                  <div className="text-gray-300 bg-gray-800 p-4 rounded">
+                    You haven't uploaded any tracks yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {ownTracks.map((track) => (
+                      <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white">
+                        <div className="flex flex-col md:flex-row justify-between">
+                          <div>
+                            <h4 className="font-bold text-lg">{track.title}</h4>
+                            <p className="text-gray-300">
+                              {track.artist} {track.album ? `• ${track.album}` : ''}
+                            </p>
+                            <div className="flex gap-2 items-center mt-1 flex-wrap">
+                              <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                {track.genres ? track.genres.name : 'No genre'}
+                              </span>
+                              <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                {track.is_public ? 'Public' : 'Private'}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {formatDate(track.created_at)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
+                            {track.audio_path ? (
+                              <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                            ) : (
+                              <span className="text-red-400">Audio unavailable</span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
-                        {track.audio_path ? (
-                          <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                        ) : (
-                          <span className="text-red-400">Audio unavailable</span>
-                        )}
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
+
+          {/* Settings Modal (editable) */}
+          {showSettings && (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+              <div className="w-full max-w-lg mx-4">
+                <UserProfile session={session} isModal onClose={() => setShowSettings(false)} />
+              </div>
+            </div>
+          )}
         </>
       ) : (
-        <div className="max-w-4xl mx-auto mt-20 p-6 bg-black bg-opacity-80 rounded-lg text-white">
+        <div className="max-w-4xl mx-auto mt-16 p-6 bg-black bg-opacity-80 rounded-lg text-white">
           {publicLoading ? (
             <div>Loading profile...</div>
           ) : publicError ? (
@@ -362,6 +472,6 @@ export default function Profile({ session }) {
           )}
         </div>
       )}
-    </>
+    </div>
   )
 }

@@ -290,9 +290,9 @@ export default function Upload({ session }) {
   }
   
   return (
-    <>
+    <div className="min-h-screen bg-black text-white">
       <NavBar session={session} onSignOut={handleSignOut} />
-      <div className="max-w-4xl mx-auto mt-20 p-6 bg-black bg-opacity-80 rounded-lg text-white">
+      <div className="max-w-4xl mx-auto mt-16 p-6 bg-black bg-opacity-80 rounded-lg text-white">
         <h2 className="text-2xl font-bold mb-6">Upload Track</h2>
         
         {error && <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded mb-4">{error}</div>}
@@ -442,6 +442,6 @@ export default function Upload({ session }) {
           </button>
         )}
       </div>
-    </>
+    </div>
   )
 }

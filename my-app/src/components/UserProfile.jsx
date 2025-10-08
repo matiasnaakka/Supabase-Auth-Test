@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../supabaseclient'
 
-const UserProfile = ({ session }) => {
+const UserProfile = ({ session, isModal = false, onClose, readOnly = false }) => {
   const [profile, setProfile] = useState({
     username: '',
     bio: '',
@@ -163,26 +163,83 @@ const UserProfile = ({ session }) => {
   if (!session) return <div>Please log in to view your profile.</div>
   if (loading && !profile.username) return <div>Loading...</div>
 
+  const containerClasses = isModal
+    ? 'p-6 bg-gray-900 rounded-lg text-white shadow-xl relative'
+    : 'max-w-md mx-auto mt-16 p-6 bg-black bg-opacity-80 rounded-lg text-white'
+
+  // Read-only display (no editing inline)
+  if (readOnly) {
+    return (
+      <div className={containerClasses}>
+        <h2 className="text-2xl font-bold mb-2">Profile</h2>
+        <p className="text-sm text-gray-300 mb-4">
+          Following {followingCount} • Followers {followerCount}
+        </p>
+
+        {error && (
+          <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="flex flex-col items-center mb-4">
+          <img
+            key={avatarKey}
+            src={profile.avatar_url ? `${profile.avatar_url}?t=${avatarKey}` : '/default-avatar.png'}
+            alt="Avatar"
+            className="w-24 h-24 mb-3 object-cover"
+            onError={(e) => { e.target.src = '/default-avatar.png' }}
+          />
+          <div className="w-full">
+            <div className="mb-2">
+              <div className="text-xs uppercase text-gray-400">Username</div>
+              <div className="text-white">{profile.username || '—'}</div>
+            </div>
+            <div className="mb-2">
+              <div className="text-xs uppercase text-gray-400">Bio</div>
+              <div className="text-gray-200 whitespace-pre-line">{profile.bio || 'No bio yet.'}</div>
+            </div>
+            <div className="mb-2">
+              <div className="text-xs uppercase text-gray-400">Location</div>
+              <div className="text-white">{profile.location || '—'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Editable (used in modal via Settings)
   return (
-    <div className="max-w-md mx-auto mt-20 p-6 bg-black bg-opacity-80 rounded-lg text-white">
+    <div className={containerClasses}>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-300 hover:text-white"
+          aria-label="Close settings"
+        >
+          ✕
+        </button>
+      )}
+
       <h2 className="text-2xl font-bold mb-2">Profile</h2>
       <p className="text-sm text-gray-300 mb-4">
         Following {followingCount} • Followers {followerCount}
       </p>
-      
-      {/* Status messages */}
+
       {error && (
         <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded mb-4">
           {error}
         </div>
       )}
-      
+
       {success && (
         <div className="bg-green-500 bg-opacity-25 text-green-100 p-3 rounded mb-4">
           {success}
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col items-center">
           <img
@@ -190,10 +247,7 @@ const UserProfile = ({ session }) => {
             src={profile.avatar_url ? `${profile.avatar_url}?t=${avatarKey}` : '/default-avatar.png'}
             alt="Avatar"
             className="w-24 h-24 mb-2 object-cover"
-            onError={(e) => {
-              console.log('Error loading avatar, falling back to default')
-              e.target.src = '/default-avatar.png'
-            }}
+            onError={(e) => { e.target.src = '/default-avatar.png' }}
           />
           <div className="flex flex-col items-center">
             <input
@@ -206,6 +260,7 @@ const UserProfile = ({ session }) => {
             {loading && <p className="text-sm text-gray-400 mt-1">Uploading...</p>}
           </div>
         </div>
+
         <label>
           Username
           <input

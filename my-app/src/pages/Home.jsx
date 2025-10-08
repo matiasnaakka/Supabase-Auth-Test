@@ -133,9 +133,9 @@ export default function Home({ session }) {
   }
 
   return (
-    <>
+    <div className="min-h-screen bg-black text-white">
       <NavBar session={session} onSignOut={handleSignOut} />
-      <div className="max-w-5xl mx-auto mt-20 p-6">
+      <div className="max-w-5xl mx-auto mt-16 p-6">
         <h1 className="text-3xl font-bold mb-6 text-white">Welcome, {email}</h1>
         
         <div className="mb-6">
@@ -239,6 +239,6 @@ export default function Home({ session }) {
           </div>
         )}
       </div>
-    </>
+    </div>
   )
 }
