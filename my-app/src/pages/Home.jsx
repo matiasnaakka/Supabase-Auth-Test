@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabaseclient'
 import NavBar from '../components/NavBar'
 
@@ -213,7 +214,14 @@ export default function Home({ session }) {
                         {track.genres ? track.genres.name : 'No genre'}
                       </span>
                       <span className="text-xs text-gray-400">
-                        Shared by {track.profiles?.username || 'Anonymous'} • {formatDate(track.created_at)}
+                        Shared by{' '}
+                        <Link
+                          to={`/profile?user=${track.user_id}`}
+                          className="underline hover:text-teal-300"
+                        >
+                          {track.profiles?.username || 'Anonymous'}
+                        </Link>
+                        {' '}• {formatDate(track.created_at)}
                       </span>
                     </div>
                   </div>
