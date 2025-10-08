@@ -48,6 +48,9 @@ export default function Profile({ session }) {
   const [followerCount, setFollowerCount] = useState(0)
   const [publicFollowingCount, setPublicFollowingCount] = useState(0)
   const [followError, setFollowError] = useState(null)
+  const [ownTracks, setOwnTracks] = useState([])
+  const [ownTracksLoading, setOwnTracksLoading] = useState(false)
+  const [ownTracksError, setOwnTracksError] = useState(null)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -148,6 +151,43 @@ export default function Profile({ session }) {
     return () => { isMounted = false }
   }, [isOwnProfile, targetUserId, session?.user?.id])
 
+  useEffect(() => {
+    if (!isOwnProfile || !session?.user?.id) {
+      setOwnTracks([])
+      setOwnTracksError(null)
+      setOwnTracksLoading(false)
+      return
+    }
+
+    let isMounted = true
+    const fetchOwnTracks = async () => {
+      setOwnTracksLoading(true)
+      setOwnTracksError(null)
+      try {
+        const { data, error } = await supabase
+          .from('tracks')
+          .select(`
+            id, title, artist, album, audio_path, created_at, is_public,
+            genres (name)
+          `)
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+        if (error) throw error
+        if (isMounted) setOwnTracks(data || [])
+      } catch (err) {
+        if (isMounted) {
+          setOwnTracksError(err.message)
+          setOwnTracks([])
+        }
+      } finally {
+        if (isMounted) setOwnTracksLoading(false)
+      }
+    }
+
+    fetchOwnTracks()
+    return () => { isMounted = false }
+  }, [isOwnProfile, session?.user?.id])
+
   const handleFollowToggle = async () => {
     if (!session?.user?.id || !targetUserId) return
     setFollowError(null)
@@ -183,7 +223,56 @@ export default function Profile({ session }) {
     <>
       <NavBar session={session} onSignOut={handleSignOut} />
       {isOwnProfile ? (
-        <UserProfile session={session} />
+        <>
+          <UserProfile session={session} />
+          <div className="max-w-4xl mx-auto mt-8 p-6 bg-black bg-opacity-80 rounded-lg text-white">
+            <h3 className="text-2xl font-bold mb-4">Your Tracks</h3>
+            {ownTracksLoading ? (
+              <div>Loading your tracks...</div>
+            ) : ownTracksError ? (
+              <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded">
+                {ownTracksError}
+              </div>
+            ) : ownTracks.length === 0 ? (
+              <div className="text-gray-300 bg-gray-800 p-4 rounded">
+                You haven't uploaded any tracks yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {ownTracks.map((track) => (
+                  <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white">
+                    <div className="flex flex-col md:flex-row justify-between">
+                      <div>
+                        <h4 className="font-bold text-lg">{track.title}</h4>
+                        <p className="text-gray-300">
+                          {track.artist} {track.album ? `• ${track.album}` : ''}
+                        </p>
+                        <div className="flex gap-2 items-center mt-1 flex-wrap">
+                          <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                            {track.genres ? track.genres.name : 'No genre'}
+                          </span>
+                          <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                            {track.is_public ? 'Public' : 'Private'}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {formatDate(track.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
+                        {track.audio_path ? (
+                          <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                        ) : (
+                          <span className="text-red-400">Audio unavailable</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       ) : (
         <div className="max-w-4xl mx-auto mt-20 p-6 bg-black bg-opacity-80 rounded-lg text-white">
           {publicLoading ? (
@@ -198,7 +287,7 @@ export default function Profile({ session }) {
                 <img
                   src={publicProfile.avatar_url || '/default-avatar.png'}
                   alt={`${publicProfile.username}'s avatar`}
-                  className="w-24 h-24 rounded-full object-cover"
+                  className="w-24 h-24 object-cover"
                   onError={(e) => { e.target.src = '/default-avatar.png' }}
                 />
                 <div className="flex-1">

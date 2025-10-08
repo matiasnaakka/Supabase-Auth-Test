@@ -186,10 +186,10 @@ const UserProfile = ({ session }) => {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col items-center">
           <img
-            key={avatarKey} // Add key to force re-render when updated
+            key={avatarKey}
             src={profile.avatar_url ? `${profile.avatar_url}?t=${avatarKey}` : '/default-avatar.png'}
             alt="Avatar"
-            className="w-24 h-24 rounded-full mb-2 object-cover"
+            className="w-24 h-24 mb-2 object-cover"
             onError={(e) => {
               console.log('Error loading avatar, falling back to default')
               e.target.src = '/default-avatar.png'
