@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import NavBar from '../components/NavBar'
 import { supabase } from '../supabaseclient'
 import UserProfile from '../components/UserProfile'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 const SignedAudioPlayer = ({ audioPath, trackId }) => {
   const [signedUrl, setSignedUrl] = useState(null)
@@ -36,6 +36,7 @@ const SignedAudioPlayer = ({ audioPath, trackId }) => {
 
 export default function Profile({ session }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const searchParams = new URLSearchParams(location.search)
   const targetUserId = searchParams.get('user')
   const isOwnProfile = !targetUserId || targetUserId === session?.user?.id
@@ -62,6 +63,10 @@ export default function Profile({ session }) {
   const [ownHeaderError, setOwnHeaderError] = useState(null)
 
   const [showSettings, setShowSettings] = useState(false)
+  const [followModal, setFollowModal] = useState({ open: false, type: null, userId: null })
+  const [followModalUsers, setFollowModalUsers] = useState([])
+  const [followModalLoading, setFollowModalLoading] = useState(false)
+  const [followModalError, setFollowModalError] = useState(null)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -281,6 +286,54 @@ export default function Profile({ session }) {
     }
   }
 
+  const fetchFollowList = async (type, userId) => {
+    const relationColumn = type === 'followers' ? 'followed_id' : 'follower_id'
+    const selectColumn = type === 'followers' ? 'follower_id' : 'followed_id'
+    const { data, error } = await supabase
+      .from('followers')
+      .select(selectColumn)
+      .eq(relationColumn, userId)
+
+    if (error) throw error
+    const ids = Array.from(new Set((data || []).map((row) => row[selectColumn])))
+    if (!ids.length) return []
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', ids)
+
+    if (profilesError) throw profilesError
+    return (profilesData || []).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+  }
+
+  const openFollowModal = async (type, userId) => {
+    if (!userId) return
+    setFollowModal({ open: true, type, userId })
+    setFollowModalUsers([])
+    setFollowModalError(null)
+    setFollowModalLoading(true)
+    try {
+      const users = await fetchFollowList(type, userId)
+      setFollowModalUsers(users)
+    } catch (err) {
+      setFollowModalError(err.message)
+    } finally {
+      setFollowModalLoading(false)
+    }
+  }
+
+  const closeFollowModal = () => {
+    setFollowModal({ open: false, type: null, userId: null })
+    setFollowModalUsers([])
+    setFollowModalError(null)
+  }
+
+  const handleProfileSelect = (userId) => {
+    closeFollowModal()
+    if (!userId) return
+    navigate(userId === session?.user?.id ? '/profile' : `/profile?user=${userId}`)
+  }
+
   return (
     <div className="min-h-screen bg-black text-white">
       <NavBar session={session} onSignOut={handleSignOut} />
@@ -319,8 +372,22 @@ export default function Profile({ session }) {
                     >
                       Settings
                     </button>
-                    <span className="text-xl text-gray-400">
-                      {ownFollowerCount === 1 ? '1 follower' : `${ownFollowerCount} followers`} • Following {ownFollowingCount}
+                    <span className="text-xl text-gray-400 space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => openFollowModal('followers', session?.user?.id)}
+                        className="hover:text-white underline-offset-2 hover:underline"
+                      >
+                        {ownFollowerCount === 1 ? '1 follower' : `${ownFollowerCount} followers`}
+                      </button>
+                      <span>•</span>
+                      <button
+                        type="button"
+                        onClick={() => openFollowModal('following', session?.user?.id)}
+                        className="hover:text-white underline-offset-2 hover:underline"
+                      >
+                        Following {ownFollowingCount}
+                      </button>
                     </span>
                   </div>
                 </div>
@@ -423,8 +490,22 @@ export default function Profile({ session }) {
                   >
                     {followLoading ? 'Processing...' : isFollowing ? 'Unfollow' : 'Follow'}
                   </button>
-                  <span className="text-2xl text-gray-400">
-                    {followerCount === 1 ? '1 follower' : `${followerCount} followers`} • Following {publicFollowingCount}
+                  <span className="text-2xl text-gray-400 space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => openFollowModal('followers', targetUserId)}
+                      className="hover:text-white underline-offset-2 hover:underline"
+                    >
+                      {followerCount === 1 ? '1 follower' : `${followerCount} followers`}
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => openFollowModal('following', targetUserId)}
+                      className="hover:text-white underline-offset-2 hover:underline"
+                    >
+                      Following {publicFollowingCount}
+                    </button>
                   </span>
                   {followError && (
                     <span className="text-2xl text-red-400">{followError}</span>
@@ -470,6 +551,52 @@ export default function Profile({ session }) {
               )}
             </>
           )}
+        </div>
+      )}
+      {followModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-semibold">
+                {followModal.type === 'followers' ? 'Followers' : 'Following'}
+              </h3>
+              <button
+                type="button"
+                onClick={closeFollowModal}
+                className="text-gray-300 hover:text-white"
+                aria-label="Close follow list"
+              >
+                ✕
+              </button>
+            </div>
+            {followModalLoading ? (
+              <div className="text-gray-300">Loading...</div>
+            ) : followModalError ? (
+              <div className="text-red-400">{followModalError}</div>
+            ) : followModalUsers.length === 0 ? (
+              <div className="text-gray-400">No users to show.</div>
+            ) : (
+              <ul className="space-y-2 max-h-72 overflow-y-auto">
+                {followModalUsers.map((user) => (
+                  <li key={user.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleProfileSelect(user.id)}
+                      className="flex w-full items-center gap-3 rounded bg-gray-800 px-3 py-2 text-left hover:bg-gray-700"
+                    >
+                      <img
+                        src={user.avatar_url || '/default-avatar.png'}
+                        alt={user.username || user.id}
+                        className="h-10 w-10 flex-shrink-0 object-cover"
+                        onError={(e) => { e.target.src = '/default-avatar.png' }}
+                      />
+                      <span className="text-white">{user.username || user.id}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </div>

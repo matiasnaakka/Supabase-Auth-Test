@@ -45,26 +45,26 @@ const NavBar = ({ session, onSignOut }) => {
           <span className="text-white">{session.user.email}</span>
           <button
             onClick={handleSignOutClick}
-            className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
+            className="bg-green-500 text-black px-3 py-1 rounded hover:bg-gray-200"
           >
             Sign out
           </button>
 
           {showLogoutConfirm && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white p-4 rounded-md shadow-lg">
+              <div className="bg-black p-4 rounded-md shadow-lg">
                 <h3 className="text-lg font-semibold mb-2">Confirm Sign Out</h3>
                 <p className="mb-4">Are you sure you want to sign out?</p>
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={cancelSignOut}
-                    className="px-3 py-1 bg-gray-200 rounded"
+                    className="px-3 py-1 bg-red-500 text-white rounded"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={confirmSignOut}
-                    className="px-3 py-1 bg-red-500 text-white rounded"
+                    className="px-3 py-1 bg-green-500 text-white rounded"
                   >
                     Sign Out
                   </button>
