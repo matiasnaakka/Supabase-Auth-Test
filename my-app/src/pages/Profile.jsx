@@ -46,6 +46,7 @@ export default function Profile({ session }) {
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
+  const [publicFollowingCount, setPublicFollowingCount] = useState(0)
   const [followError, setFollowError] = useState(null)
 
   const handleSignOut = async () => {
@@ -68,6 +69,7 @@ export default function Profile({ session }) {
       setPublicError(null)
       setIsFollowing(false)
       setFollowerCount(0)
+      setPublicFollowingCount(0)
       setFollowError(null)
       setFollowLoading(false)
       return
@@ -103,6 +105,12 @@ export default function Profile({ session }) {
           .eq('followed_id', targetUserId)
         if (followersError) throw followersError
 
+        const { count: followingCountResult = 0, error: followingCountError } = await supabase
+          .from('followers')
+          .select('followed_id', { count: 'exact', head: true })
+          .eq('follower_id', targetUserId)
+        if (followingCountError) throw followingCountError
+
         let userFollows = false
         if (session?.user?.id) {
           const { count: followStatusCount = 0, error: followStatusError } = await supabase
@@ -118,6 +126,7 @@ export default function Profile({ session }) {
           setPublicProfile(profileData)
           setPublicTracks(tracksData || [])
           setFollowerCount(followerCountResult)
+          setPublicFollowingCount(followingCountResult)
           setIsFollowing(userFollows)
           setFollowError(null)
         }
@@ -128,6 +137,7 @@ export default function Profile({ session }) {
           setPublicTracks([])
           setIsFollowing(false)
           setFollowerCount(0)
+          setPublicFollowingCount(0)
         }
       } finally {
         if (isMounted) setPublicLoading(false)
@@ -215,7 +225,7 @@ export default function Profile({ session }) {
                     {followLoading ? 'Processing...' : isFollowing ? 'Unfollow' : 'Follow'}
                   </button>
                   <span className="text-xs text-gray-400">
-                    {followerCount === 1 ? '1 follower' : `${followerCount} followers`}
+                    {followerCount === 1 ? '1 follower' : `${followerCount} followers`} • Following {publicFollowingCount}
                   </span>
                   {followError && (
                     <span className="text-xs text-red-400">{followError}</span>

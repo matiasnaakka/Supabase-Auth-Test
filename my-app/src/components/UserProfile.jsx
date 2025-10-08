@@ -11,19 +11,46 @@ const UserProfile = ({ session }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [avatarKey, setAvatarKey] = useState(Date.now()) // Add a key to force image refresh
+  const [avatarKey, setAvatarKey] = useState(Date.now())
+  const [followingCount, setFollowingCount] = useState(0)
+  const [followerCount, setFollowerCount] = useState(0)
 
   useEffect(() => {
     const fetchProfile = async () => {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, bio, location, avatar_url')
-        .eq('id', session.user.id)
-        .single()
-      if (error) setError(error.message)
-      else setProfile(data)
-      setLoading(false)
+      setError(null)
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('username, bio, location, avatar_url')
+          .eq('id', session.user.id)
+          .single()
+        if (profileError) throw profileError
+        setProfile(profileData || {
+          username: '',
+          bio: '',
+          location: '',
+          avatar_url: ''
+        })
+
+        const { count = 0, error: followingError } = await supabase
+          .from('followers')
+          .select('followed_id', { count: 'exact', head: true })
+          .eq('follower_id', session.user.id)
+        if (followingError) throw followingError
+        setFollowingCount(count)
+
+        const { count: followerTotal = 0, error: followerError } = await supabase
+          .from('followers')
+          .select('follower_id', { count: 'exact', head: true })
+          .eq('followed_id', session.user.id)
+        if (followerError) throw followerError
+        setFollowerCount(followerTotal)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
     }
     if (session) fetchProfile()
   }, [session])
@@ -138,7 +165,10 @@ const UserProfile = ({ session }) => {
 
   return (
     <div className="max-w-md mx-auto mt-20 p-6 bg-black bg-opacity-80 rounded-lg text-white">
-      <h2 className="text-2xl font-bold mb-4">Profile</h2>
+      <h2 className="text-2xl font-bold mb-2">Profile</h2>
+      <p className="text-sm text-gray-300 mb-4">
+        Following {followingCount} • Followers {followerCount}
+      </p>
       
       {/* Status messages */}
       {error && (
