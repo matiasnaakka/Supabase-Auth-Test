@@ -315,7 +315,7 @@ export default function Profile({ session }) {
                   <div className="flex flex-col items-start md:items-end gap-2 md:ml-auto">
                     <button
                       onClick={() => setShowSettings(true)}
-                      className="px-4 py-2 rounded font-semibold bg-gray-700 text-white hover:bg-gray-600"
+                      className="px-4 py-2 rounded font-semibold bg-cyan-500 text-white hover:bg-cyan-700"
                     >
                       Settings
                     </button>
@@ -413,12 +413,12 @@ export default function Profile({ session }) {
                   <button
                     onClick={handleFollowToggle}
                     disabled={followLoading}
-                    className={`px-4 py-2 rounded font-semibold transition ${
+                    className={`px-4 py-2 rounded-2xl font-semibold transition ${
                       followLoading ? 'opacity-70 cursor-not-allowed' : ''
                     } ${
                       isFollowing
                         ? 'bg-gray-700 text-white hover:bg-gray-600'
-                        : 'bg-teal-400 text-black hover:bg-teal-300'
+                        : 'bg-amber-500 text-white hover:bg-amber-300'
                     }`}
                   >
                     {followLoading ? 'Processing...' : isFollowing ? 'Unfollow' : 'Follow'}

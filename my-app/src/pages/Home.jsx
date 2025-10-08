@@ -51,7 +51,8 @@ export default function Home({ session }) {
   const [tracks, setTracks] = useState([])
   const [filteredTracks, setFilteredTracks] = useState([])
   const [genres, setGenres] = useState([])
-  const [selectedGenreId, setSelectedGenreId] = useState(null)
+  const [selectedGenreIds, setSelectedGenreIds] = useState([]) // was selectedGenreId
+  const [showGenres, setShowGenres] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [displayName, setDisplayName] = useState('user')
@@ -130,17 +131,23 @@ export default function Home({ session }) {
     }
   }
 
-  // Filter tracks when genre selection changes
+  // Filter tracks when genre selection changes (now supports multi-select)
   useEffect(() => {
-    if (selectedGenreId) {
-      setFilteredTracks(tracks.filter(track => track.genre_id === selectedGenreId))
+    if (selectedGenreIds.length > 0) {
+      setFilteredTracks(tracks.filter(track => selectedGenreIds.includes(track.genre_id)))
     } else {
       setFilteredTracks(tracks)
     }
-  }, [selectedGenreId, tracks])
+  }, [selectedGenreIds, tracks])
 
-  const handleGenreSelect = (genreId) => {
-    setSelectedGenreId(genreId === selectedGenreId ? null : genreId)
+  const handleGenreToggle = (genreId) => {
+    setSelectedGenreIds((prev) =>
+      prev.includes(genreId) ? prev.filter(id => id !== genreId) : [...prev, genreId]
+    )
+  }
+
+  const handleClearGenres = () => {
+    setSelectedGenreIds([])
   }
 
   const handleSignOut = async () => {
@@ -161,33 +168,59 @@ export default function Home({ session }) {
       <NavBar session={session} onSignOut={handleSignOut} />
       <div className="max-w-5xl mx-auto mt-16 p-6">
         <h1 className="text-3xl font-bold mb-6 text-white">Welcome, {displayName}</h1>
-        
+
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-3 text-white">Filter by Genre</h2>
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div
+            className="relative inline-block"
+            onMouseEnter={() => setShowGenres(true)}
+            onMouseLeave={() => setShowGenres(false)}
+          >
             <button
-              onClick={() => setSelectedGenreId(null)}
-              className={`px-3 py-1 rounded text-sm ${
-                !selectedGenreId
-                  ? 'bg-teal-400 text-black'
-                  : 'bg-gray-700 text-white hover:bg-gray-600'
-              }`}
+              type="button"
+              className="px-3 py-1 rounded text-sm bg-gray-700 text-white hover:bg-gray-600"
             >
-              All Genres
+              Filter{selectedGenreIds.length > 0 ? ` (${selectedGenreIds.length})` : ''}
             </button>
-            {genres.map(genre => (
-              <button
-                key={genre.id}
-                onClick={() => handleGenreSelect(genre.id)}
-                className={`px-3 py-1 rounded text-sm ${
-                  selectedGenreId === genre.id
-                    ? 'bg-teal-400 text-black'
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
-                }`}
-              >
-                {genre.name}
-              </button>
-            ))}
+
+            {showGenres && (
+              <div className="absolute z-20 mt-2 w-64 rounded bg-gray-900 border border-gray-700 shadow-lg">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700">
+                  <span className="text-sm text-gray-300">Select genres</span>
+                  <button
+                    type="button"
+                    onClick={handleClearGenres}
+                    className="text-xs text-teal-300 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <ul
+                  className="max-h-56 overflow-y-auto divide-y divide-gray-800"
+                  role="listbox"
+                  aria-label="Genres"
+                >
+                  {genres.map((genre) => {
+                    const selected = selectedGenreIds.includes(genre.id)
+                    return (
+                      <li
+                        key={genre.id}
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => handleGenreToggle(genre.id)}
+                        className={`cursor-pointer px-3 py-2 flex items-center justify-between ${
+                          selected ? 'bg-teal-500/20 text-teal-300' : 'hover:bg-gray-800'
+                        }`}
+                        title={genre.description}
+                      >
+                        <span>{genre.name}</span>
+                        {selected && <span className="text-teal-300">✓</span>}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
 
@@ -209,8 +242,8 @@ export default function Home({ session }) {
           <div className="text-white">Loading tracks...</div>
         ) : filteredTracks.length === 0 ? (
           <div className="text-white bg-gray-800 p-6 rounded">
-            {selectedGenreId 
-              ? "No tracks found for this genre. Try selecting a different genre." 
+            {selectedGenreIds.length > 0
+              ? "No tracks found for the selected genres. Try selecting different genres." 
               : "No tracks available yet."}
           </div>
         ) : (
