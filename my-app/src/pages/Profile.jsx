@@ -43,6 +43,10 @@ export default function Profile({ session }) {
   const [publicTracks, setPublicTracks] = useState([])
   const [publicLoading, setPublicLoading] = useState(false)
   const [publicError, setPublicError] = useState(null)
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
+  const [followerCount, setFollowerCount] = useState(0)
+  const [followError, setFollowError] = useState(null)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -62,6 +66,10 @@ export default function Profile({ session }) {
       setPublicProfile(null)
       setPublicTracks([])
       setPublicError(null)
+      setIsFollowing(false)
+      setFollowerCount(0)
+      setFollowError(null)
+      setFollowLoading(false)
       return
     }
 
@@ -89,15 +97,37 @@ export default function Profile({ session }) {
           .order('created_at', { ascending: false })
         if (tracksError) throw tracksError
 
+        const { count: followerCountResult = 0, error: followersError } = await supabase
+          .from('followers')
+          .select('follower_id', { count: 'exact', head: true })
+          .eq('followed_id', targetUserId)
+        if (followersError) throw followersError
+
+        let userFollows = false
+        if (session?.user?.id) {
+          const { count: followStatusCount = 0, error: followStatusError } = await supabase
+            .from('followers')
+            .select('follower_id', { count: 'exact', head: true })
+            .eq('followed_id', targetUserId)
+            .eq('follower_id', session.user.id)
+          if (followStatusError) throw followStatusError
+          userFollows = followStatusCount > 0
+        }
+
         if (isMounted) {
           setPublicProfile(profileData)
           setPublicTracks(tracksData || [])
+          setFollowerCount(followerCountResult)
+          setIsFollowing(userFollows)
+          setFollowError(null)
         }
       } catch (err) {
         if (isMounted) {
           setPublicError(err.message)
           setPublicProfile(null)
           setPublicTracks([])
+          setIsFollowing(false)
+          setFollowerCount(0)
         }
       } finally {
         if (isMounted) setPublicLoading(false)
@@ -106,7 +136,38 @@ export default function Profile({ session }) {
 
     fetchProfile()
     return () => { isMounted = false }
-  }, [isOwnProfile, targetUserId])
+  }, [isOwnProfile, targetUserId, session?.user?.id])
+
+  const handleFollowToggle = async () => {
+    if (!session?.user?.id || !targetUserId) return
+    setFollowError(null)
+    setFollowLoading(true)
+    try {
+      if (isFollowing) {
+        const { error } = await supabase
+          .from('followers')
+          .delete()
+          .eq('follower_id', session.user.id)
+          .eq('followed_id', targetUserId)
+        if (error) throw error
+        setIsFollowing(false)
+        setFollowerCount((prev) => Math.max(0, (prev || 0) - 1))
+      } else {
+        const { error } = await supabase
+          .from('followers')
+          .insert([{ follower_id: session.user.id, followed_id: targetUserId }])
+        if (error && error.code !== '23505') throw error
+        setIsFollowing(true)
+        if (!error) {
+          setFollowerCount((prev) => (prev || 0) + 1)
+        }
+      }
+    } catch (err) {
+      setFollowError(err.message)
+    } finally {
+      setFollowLoading(false)
+    }
+  }
 
   return (
     <>
@@ -130,13 +191,34 @@ export default function Profile({ session }) {
                   className="w-24 h-24 rounded-full object-cover"
                   onError={(e) => { e.target.src = '/default-avatar.png' }}
                 />
-                <div>
+                <div className="flex-1">
                   <h2 className="text-3xl font-bold mb-1">{publicProfile.username}</h2>
                   {publicProfile.location && (
                     <p className="text-sm text-gray-300 mb-2">{publicProfile.location}</p>
                   )}
                   {publicProfile.bio && (
                     <p className="text-gray-200 whitespace-pre-line">{publicProfile.bio}</p>
+                  )}
+                </div>
+                <div className="flex flex-col items-start md:items-end gap-2 md:ml-auto">
+                  <button
+                    onClick={handleFollowToggle}
+                    disabled={followLoading}
+                    className={`px-4 py-2 rounded font-semibold transition ${
+                      followLoading ? 'opacity-70 cursor-not-allowed' : ''
+                    } ${
+                      isFollowing
+                        ? 'bg-gray-700 text-white hover:bg-gray-600'
+                        : 'bg-teal-400 text-black hover:bg-teal-300'
+                    }`}
+                  >
+                    {followLoading ? 'Processing...' : isFollowing ? 'Unfollow' : 'Follow'}
+                  </button>
+                  <span className="text-xs text-gray-400">
+                    {followerCount === 1 ? '1 follower' : `${followerCount} followers`}
+                  </span>
+                  {followError && (
+                    <span className="text-xs text-red-400">{followError}</span>
                   )}
                 </div>
               </div>

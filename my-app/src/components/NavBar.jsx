@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 const NavBar = ({ session, onSignOut }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const handleSignOutClick = (e) => {
     e.preventDefault()
@@ -21,6 +22,15 @@ const NavBar = ({ session, onSignOut }) => {
   return (
     <nav className="w-full flex items-center justify-between px-6 py-4 bg-black bg-opacity-80 fixed top-0 left-0 z-30">
       <Link to="/home" className="text-white font-['Lalezar'] text-2xl">Kohina</Link>
+      <div className="flex-1 flex justify-center px-4">
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search..."
+          className="w-full max-w-md rounded-full px-4 py-2 bg-gray-900 text-white placeholder-gray-500 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-400"
+        />
+      </div>
       {session && (
         <div className="flex items-center gap-4">
           <Link to="/home" className="text-white hover:underline">
