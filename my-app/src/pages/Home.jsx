@@ -54,14 +54,38 @@ export default function Home({ session }) {
   const [selectedGenreId, setSelectedGenreId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-
-  const email = session?.user?.email ?? 'user'
+  const [displayName, setDisplayName] = useState('user')
 
   // Fetch tracks and genres on component mount
   useEffect(() => {
     fetchGenres()
     fetchTracks()
   }, [])
+
+  // Fetch display name (username) of the logged-in user
+  useEffect(() => {
+    const loadName = async () => {
+      try {
+        if (session?.user?.id) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', session.user.id)
+            .single()
+          if (!error && data?.username) {
+            setDisplayName(data.username)
+          } else {
+            setDisplayName(session?.user?.email ?? 'user')
+          }
+        } else {
+          setDisplayName('user')
+        }
+      } catch {
+        setDisplayName(session?.user?.email ?? 'user')
+      }
+    }
+    loadName()
+  }, [session?.user?.id])
 
   const fetchGenres = async () => {
     try {
@@ -136,7 +160,7 @@ export default function Home({ session }) {
     <div className="min-h-screen bg-black text-white">
       <NavBar session={session} onSignOut={handleSignOut} />
       <div className="max-w-5xl mx-auto mt-16 p-6">
-        <h1 className="text-3xl font-bold mb-6 text-white">Welcome, {email}</h1>
+        <h1 className="text-3xl font-bold mb-6 text-white">Welcome, {displayName}</h1>
         
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-3 text-white">Filter by Genre</h2>
