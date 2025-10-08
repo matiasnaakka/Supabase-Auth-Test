@@ -319,7 +319,7 @@ export default function Profile({ session }) {
                     >
                       Settings
                     </button>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xl text-gray-400">
                       {ownFollowerCount === 1 ? '1 follower' : `${ownFollowerCount} followers`} • Following {ownFollowingCount}
                     </span>
                   </div>
@@ -423,11 +423,11 @@ export default function Profile({ session }) {
                   >
                     {followLoading ? 'Processing...' : isFollowing ? 'Unfollow' : 'Follow'}
                   </button>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-2xl text-gray-400">
                     {followerCount === 1 ? '1 follower' : `${followerCount} followers`} • Following {publicFollowingCount}
                   </span>
                   {followError && (
-                    <span className="text-xs text-red-400">{followError}</span>
+                    <span className="text-2xl text-red-400">{followError}</span>
                   )}
                 </div>
               </div>
