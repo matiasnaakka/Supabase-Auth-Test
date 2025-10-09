@@ -46,6 +46,11 @@ const SignedAudioPlayer = ({ audioPath, trackId }) => {
   )
 }
 
+const sanitizeFileName = (name) => {
+  if (!name) return `file-${Date.now()}`
+  return name.replace(/[^a-z0-9.\-_]/gi, '').replace(/\s+/g, '-').toLowerCase()
+}
+
 export default function Upload({ session }) {
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
@@ -62,6 +67,7 @@ export default function Upload({ session }) {
   const [loadingTracks, setLoadingTracks] = useState(false)
   const [genres, setGenres] = useState([])
   const [loadingGenres, setLoadingGenres] = useState(false)
+  const [imageProcessingTrackId, setImageProcessingTrackId] = useState(null)
   
   // Fetch user's tracks and genres
   useEffect(() => {
@@ -187,12 +193,7 @@ export default function Upload({ session }) {
     setSuccess(null)
     
     try {
-      // 1. Sanitize filename more thoroughly
-      const sanitizedName = file.name
-        .replace(/[^a-z0-9.\-_]/gi, '')
-        .replace(/\s+/g, '-')
-        .toLowerCase()
-      const fileName = `${Date.now()}-${sanitizedName}`
+      const fileName = `${Date.now()}-${sanitizeFileName(file.name)}`
       const filePath = `${session.user.id}/${fileName}`
       
       console.log('Uploading file:', { filePath, fileType: file.type, fileSize: file.size })
@@ -208,11 +209,7 @@ export default function Upload({ session }) {
         throw new Error(`Upload error: ${uploadError.message}`)
       }
       
-      const sanitizedImageName = imageFile.name
-        .replace(/[^a-z0-9.\-_]/gi, '')
-        .replace(/\s+/g, '-')
-        .toLowerCase()
-      const imageFileName = `${Date.now()}-${sanitizedImageName}`
+      const imageFileName = `${Date.now()}-${sanitizeFileName(imageFile.name)}`
       const imagePath = `${session.user.id}/tracks/${imageFileName}`
 
       const { data: imageUploadData, error: imageUploadError } = await supabase.storage
@@ -267,6 +264,69 @@ export default function Upload({ session }) {
     }
   }
   
+  const handleTrackCoverUpload = async (trackId, existingPath, event) => {
+    const coverFile = event.target.files?.[0]
+    if (!coverFile) return
+    if (!coverFile.type.startsWith('image/')) {
+      setError('Cover must be an image file')
+      event.target.value = ''
+      return
+    }
+    setImageProcessingTrackId(trackId)
+    setError(null)
+    setSuccess(null)
+    try {
+      const imageFileName = `${trackId}-${Date.now()}-${sanitizeFileName(coverFile.name)}`
+      const newImagePath = `${session.user.id}/tracks/${imageFileName}`
+      const { data, error } = await supabase.storage
+        .from('track-images')
+        .upload(newImagePath, coverFile, { upsert: true, contentType: coverFile.type })
+      if (error) throw new Error(`Image upload error: ${error.message}`)
+      const finalPath = data?.path || newImagePath
+      const { error: updateError } = await supabase
+        .from('tracks')
+        .update({ image_path: finalPath })
+        .eq('id', trackId)
+        .eq('user_id', session.user.id)
+      if (updateError) throw new Error(`Database error: ${updateError.message}`)
+      if (existingPath && existingPath !== finalPath) {
+        await supabase.storage.from('track-images').remove([existingPath])
+      }
+      setSuccess('Track cover updated successfully!')
+      fetchUserTracks()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setImageProcessingTrackId(null)
+      event.target.value = ''
+    }
+  }
+
+  const handleRemoveTrackImage = async (trackId, existingPath) => {
+    if (!existingPath) return
+    setImageProcessingTrackId(trackId)
+    setError(null)
+    setSuccess(null)
+    try {
+      const { error: updateError } = await supabase
+        .from('tracks')
+        .update({ image_path: null })
+        .eq('id', trackId)
+        .eq('user_id', session.user.id)
+      if (updateError) throw new Error(`Database error: ${updateError.message}`)
+      const { error: removeError } = await supabase.storage
+        .from('track-images')
+        .remove([existingPath])
+      if (removeError) console.error('Image removal warning:', removeError)
+      setSuccess('Track cover removed.')
+      fetchUserTracks()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setImageProcessingTrackId(null)
+    }
+  }
+
   const handleDeleteTrack = async (trackId) => {
     if (!confirm('Are you sure you want to delete this track?')) {
       return
@@ -277,7 +337,7 @@ export default function Upload({ session }) {
     // 1. Get the track details
     const { data: trackData, error: fetchError } = await supabase
       .from('tracks')
-      .select('audio_path')
+      .select('audio_path, image_path')
       .eq('id', trackId)
       .single()
     
@@ -316,7 +376,16 @@ export default function Upload({ session }) {
       console.error('Could not delete file from storage:', err)
     }
     
-    // 4. Refresh tracks list
+    // 4. Delete the cover image if it exists
+    try {
+      if (trackData.image_path) {
+        await supabase.storage.from('track-images').remove([trackData.image_path])
+      }
+    } catch (err) {
+      console.error('Could not delete image from storage:', err)
+    }
+    
+    // 5. Refresh tracks list
     fetchUserTracks()
     setLoading(false)
     setSuccess('Track deleted successfully!')
@@ -478,19 +547,54 @@ export default function Upload({ session }) {
                       </p>
                       {!track.audio_path && <p className="text-red-400 text-sm">Audio path missing</p>}
                     </div>
-                    <div className="flex gap-2 w-full md:w-auto">
-                      {track.audio_path ? (
-                        <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                      ) : (
-                        <span className="text-red-400">Audio unavailable</span>
-                      )}
-                      <button
-                        onClick={() => handleDeleteTrack(track.id)}
-                        className="bg-red-500 text-white p-1 rounded"
-                        disabled={loading}
-                      >
-                        Delete
-                      </button>
+                    <div className="flex flex-col gap-3 w-full md:w-auto md:items-end">
+                      <div className="flex gap-2 w-full md:w-auto">
+                        {track.audio_path ? (
+                          <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                        ) : (
+                          <span className="text-red-400">Audio unavailable</span>
+                        )}
+                        <button
+                          onClick={() => handleDeleteTrack(track.id)}
+                          className="bg-red-500 text-white p-1 rounded"
+                          disabled={loading}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <div className="flex flex-col gap-2 w-full md:w-auto text-sm">
+                        <input
+                          id={`cover-upload-${track.id}`}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) => handleTrackCoverUpload(track.id, track.image_path, event)}
+                          disabled={imageProcessingTrackId === track.id}
+                        />
+                        <label
+                          htmlFor={`cover-upload-${track.id}`}
+                          className={`px-2 py-1 rounded text-center cursor-pointer ${
+                            imageProcessingTrackId === track.id
+                              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                              : 'bg-teal-500 text-black hover:bg-teal-400'
+                          }`}
+                        >
+                          {track.image_path ? 'Change cover' : 'Add cover'}
+                        </label>
+                        {track.image_path && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTrackImage(track.id, track.image_path)}
+                            className="bg-gray-700 text-white px-2 py-1 rounded disabled:opacity-50"
+                            disabled={imageProcessingTrackId === track.id}
+                          >
+                            Remove cover
+                          </button>
+                        )}
+                        {imageProcessingTrackId === track.id && (
+                          <span className="text-xs text-gray-400">Updating cover...</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

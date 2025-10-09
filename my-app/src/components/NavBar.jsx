@@ -40,7 +40,7 @@ const NavBar = ({ session, onSignOut }) => {
             Profile
           </Link>
           <Link to="/upload" className="text-white hover:underline">
-            Upload
+            Manage uploads
           </Link>
           <span className="text-white">{session.user.email}</span>
           <button

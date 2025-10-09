@@ -370,7 +370,7 @@ export default function Profile({ session }) {
                       onClick={() => setShowSettings(true)}
                       className="px-4 py-2 rounded font-semibold bg-cyan-500 text-white hover:bg-cyan-700"
                     >
-                      Settings
+                      Profile settings
                     </button>
                     <span className="text-xl text-gray-400 space-x-2">
                       <button
