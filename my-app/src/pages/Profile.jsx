@@ -3,6 +3,7 @@ import NavBar from '../components/NavBar'
 import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import UserProfile from '../components/UserProfile'
 import { useLocation, useNavigate } from 'react-router-dom'
+import AddToPlaylist from '../components/AddToPlaylist'
 
 const SignedAudioPlayer = ({ audioPath, trackId }) => {
   const [signedUrl, setSignedUrl] = useState(null)
@@ -436,12 +437,13 @@ export default function Profile({ session }) {
                                 </span>
                               </div>
                             </div>
-                            <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
+                            <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
                               {track.audio_path ? (
                                 <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
                               ) : (
                                 <span className="text-red-400">Audio unavailable</span>
                               )}
+                              <AddToPlaylist session={session} track={track} />
                             </div>
                           </div>
                         </div>
@@ -560,12 +562,13 @@ export default function Profile({ session }) {
                               </span>
                             </div>
                           </div>
-                          <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
+                          <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
                             {track.audio_path ? (
                               <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
                             ) : (
                               <span className="text-red-400">Audio unavailable</span>
                             )}
+                            <AddToPlaylist session={session} track={track} />
                           </div>
                         </div>
                       </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import NavBar from '../components/NavBar'
+import AddToPlaylist from '../components/AddToPlaylist'
 
 // Reuse the SignedAudioPlayer from Upload.jsx
 const SignedAudioPlayer = ({ audioPath, trackId }) => {
@@ -294,12 +295,13 @@ export default function Home({ session }) {
                       </div>
                     </div>
                     
-                    <div className="flex-shrink-0 min-w-[200px] flex items-center">
+                    <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2">
                       {track.audio_path ? (
                         <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
                       ) : (
                         <span className="text-red-400">Audio unavailable</span>
                       )}
+                      <AddToPlaylist session={session} track={track} />
                     </div>
                   </div>
                 </div>

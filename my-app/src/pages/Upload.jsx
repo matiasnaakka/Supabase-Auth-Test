@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import NavBar from '../components/NavBar'
+import AddToPlaylist from '../components/AddToPlaylist'
 
 // Create SignedAudioPlayer component
 const SignedAudioPlayer = ({ audioPath, trackId }) => {
@@ -547,13 +548,14 @@ export default function Upload({ session }) {
                       </p>
                       {!track.audio_path && <p className="text-red-400 text-sm">Audio path missing</p>}
                     </div>
-                    <div className="flex flex-col gap-3 w-full md:w-auto md:items-end">
+                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:items-end">
                       <div className="flex gap-2 w-full md:w-auto">
                         {track.audio_path ? (
                           <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
                         ) : (
                           <span className="text-red-400">Audio unavailable</span>
                         )}
+                        <AddToPlaylist session={session} track={track} />
                         <button
                           onClick={() => handleDeleteTrack(track.id)}
                           className="bg-red-500 text-white p-1 rounded"
