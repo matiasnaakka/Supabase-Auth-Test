@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../supabaseclient'
+import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import NavBar from '../components/NavBar'
 
 // Create SignedAudioPlayer component
@@ -53,6 +53,8 @@ export default function Upload({ session }) {
   const [album, setAlbum] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [file, setFile] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
@@ -68,6 +70,19 @@ export default function Upload({ session }) {
       fetchGenres()
     }
   }, [session])
+  
+  useEffect(() => {
+    if (!session?.user?.id) return
+    const loadAvatar = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', session.user.id)
+        .single()
+      if (!error) setProfileAvatarUrl(data?.avatar_url || null)
+    }
+    loadAvatar()
+  }, [session?.user?.id])
   
   const fetchGenres = async () => {
     setLoadingGenres(true)
@@ -128,6 +143,11 @@ export default function Upload({ session }) {
     setFile(selectedFile)
   }
   
+  const handleImageChange = (e) => {
+    const selectedImage = e.target.files[0]
+    setImageFile(selectedImage || null)
+  }
+
   const handleGenreSelect = (id) => {
     setGenreId(id === genreId ? null : id) // Toggle selection
   }
@@ -137,6 +157,11 @@ export default function Upload({ session }) {
     
     if (!file) {
       setError('Please select an audio file to upload')
+      return
+    }
+    
+    if (!imageFile) {
+      setError('Please select a cover image to upload')
       return
     }
     
@@ -183,6 +208,21 @@ export default function Upload({ session }) {
         throw new Error(`Upload error: ${uploadError.message}`)
       }
       
+      const sanitizedImageName = imageFile.name
+        .replace(/[^a-z0-9.\-_]/gi, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+      const imageFileName = `${Date.now()}-${sanitizedImageName}`
+      const imagePath = `${session.user.id}/tracks/${imageFileName}`
+
+      const { data: imageUploadData, error: imageUploadError } = await supabase.storage
+        .from('track-images')
+        .upload(imagePath, imageFile, { upsert: true, contentType: imageFile.type })
+
+      if (imageUploadError) {
+        throw new Error(`Image upload error: ${imageUploadError.message}`)
+      }
+
       // 3. Create a record in the tracks table with the path only
       const trackData = {
         user_id: session.user.id,
@@ -193,7 +233,8 @@ export default function Upload({ session }) {
         audio_path: filePath,
         mime_type: file.type,
         file_size: file.size,
-        is_public: isPublic
+        is_public: isPublic,
+        image_path: imageUploadData?.path || imagePath
       }
       
       console.log('Inserting track data:', trackData)
@@ -212,6 +253,7 @@ export default function Upload({ session }) {
       setGenreId(null)
       setAlbum('')
       setFile(null)
+      setImageFile(null)
       setSuccess('Track uploaded successfully!')
       
       // 5. Refresh tracks list
@@ -371,6 +413,17 @@ export default function Upload({ session }) {
               required
             />
           </div>
+
+          <div className="mb-4">
+            <label className="block mb-1">Cover Image *</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="w-full p-2 rounded bg-gray-800 text-white"
+              required
+            />
+          </div>
           
           <div className="mb-4">
             <label className="flex items-center">
@@ -401,34 +454,48 @@ export default function Upload({ session }) {
           <div>You haven't uploaded any tracks yet.</div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {tracks.map(track => (
-              <div key={track.id} className="bg-gray-800 p-4 rounded flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-                <div>
-                  <h3 className="font-bold">{track.title}</h3>
-                  <p>{track.artist} {track.album ? `• ${track.album}` : ''}</p>
-                  <p className="text-sm text-gray-400">
-                    {track.genres ? track.genres.name : 'No genre'} • {track.is_public ? 'Public' : 'Private'}
-                    {track.mime_type && ` • ${track.mime_type.split('/')[1]}`}
-                    {track.file_size && ` • ${Math.round(track.file_size / 1024)} KB`}
-                  </p>
-                  {!track.audio_path && <p className="text-red-400 text-sm">Audio path missing</p>}
+            {tracks.map(track => {
+              const coverSrc =
+                getPublicStorageUrl('track-images', track.image_path) ||
+                profileAvatarUrl ||
+                '/default-avatar.png'
+              return (
+                <div key={track.id} className="bg-gray-800 p-4 rounded flex flex-col md:flex-row gap-4">
+                  <img
+                    src={coverSrc}
+                    alt={`${track.title} cover`}
+                    className="w-24 h-24 object-cover rounded"
+                    onError={(e) => { e.target.src = profileAvatarUrl || '/default-avatar.png' }}
+                  />
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 flex-1">
+                    <div>
+                      <h3 className="font-bold">{track.title}</h3>
+                      <p>{track.artist} {track.album ? `• ${track.album}` : ''}</p>
+                      <p className="text-sm text-gray-400">
+                        {track.genres ? track.genres.name : 'No genre'} • {track.is_public ? 'Public' : 'Private'}
+                        {track.mime_type && ` • ${track.mime_type.split('/')[1]}`}
+                        {track.file_size && ` • ${Math.round(track.file_size / 1024)} KB`}
+                      </p>
+                      {!track.audio_path && <p className="text-red-400 text-sm">Audio path missing</p>}
+                    </div>
+                    <div className="flex gap-2 w-full md:w-auto">
+                      {track.audio_path ? (
+                        <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                      ) : (
+                        <span className="text-red-400">Audio unavailable</span>
+                      )}
+                      <button
+                        onClick={() => handleDeleteTrack(track.id)}
+                        className="bg-red-500 text-white p-1 rounded"
+                        disabled={loading}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                  {track.audio_path ? (
-                    <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                  ) : (
-                    <span className="text-red-400">Audio unavailable</span>
-                  )}
-                  <button
-                    onClick={() => handleDeleteTrack(track.id)}
-                    className="bg-red-500 text-white p-1 rounded"
-                    disabled={loading}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
         

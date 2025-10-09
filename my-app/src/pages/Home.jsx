@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../supabaseclient'
+import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import NavBar from '../components/NavBar'
 
 // Reuse the SignedAudioPlayer from Upload.jsx
@@ -248,51 +248,63 @@ export default function Home({ session }) {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {filteredTracks.map(track => (
-              <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded shadow-lg text-white">
-                <div className="flex flex-col md:flex-row justify-between">
-                  <div className="mb-3 md:mb-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      {track.profiles?.avatar_url && (
-                        <img 
-                          src={track.profiles.avatar_url} 
-                          alt="User avatar"
-                          className="w-8 h-8 rounded-full object-cover"
-                          onError={(e) => e.target.src = '/default-avatar.png'}
-                        />
+            {filteredTracks.map(track => {
+              const coverSrc =
+                getPublicStorageUrl('track-images', track.image_path) ||
+                track.profiles?.avatar_url ||
+                '/default-avatar.png'
+              return (
+                <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded shadow-lg text-white flex gap-4">
+                  <img
+                    src={coverSrc}
+                    alt={`${track.title} cover`}
+                    className="w-24 h-24 object-cover rounded"
+                    onError={(e) => { e.target.src = track.profiles?.avatar_url || '/default-avatar.png' }}
+                  />
+                  <div className="flex flex-col md:flex-row justify-between flex-1">
+                    <div className="mb-3 md:mb-0">
+                      <div className="flex items-center gap-3 mb-1">
+                        {track.profiles?.avatar_url && (
+                          <img 
+                            src={track.profiles.avatar_url} 
+                            alt="User avatar"
+                            className="w-8 h-8 rounded-full object-cover"
+                            onError={(e) => e.target.src = '/default-avatar.png'}
+                          />
+                        )}
+                        <h3 className="font-bold text-lg">{track.title}</h3>
+                      </div>
+                      <p className="text-gray-300">
+                        {track.artist} {track.album ? `• ${track.album}` : ''}
+                      </p>
+                      <div className="flex gap-2 items-center mt-1">
+                        <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                          {track.genres ? track.genres.name : 'No genre'}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Shared by{' '}
+                          <Link
+                            to={`/profile?user=${track.user_id}`}
+                            className="underline hover:text-teal-300"
+                          >
+                            {track.profiles?.username || 'Anonymous'}
+                          </Link>
+                          {' '}• {formatDate(track.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex-shrink-0 min-w-[200px] flex items-center">
+                      {track.audio_path ? (
+                        <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                      ) : (
+                        <span className="text-red-400">Audio unavailable</span>
                       )}
-                      <h3 className="font-bold text-lg">{track.title}</h3>
                     </div>
-                    <p className="text-gray-300">
-                      {track.artist} {track.album ? `• ${track.album}` : ''}
-                    </p>
-                    <div className="flex gap-2 items-center mt-1">
-                      <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                        {track.genres ? track.genres.name : 'No genre'}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        Shared by{' '}
-                        <Link
-                          to={`/profile?user=${track.user_id}`}
-                          className="underline hover:text-teal-300"
-                        >
-                          {track.profiles?.username || 'Anonymous'}
-                        </Link>
-                        {' '}• {formatDate(track.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex-shrink-0 min-w-[200px] flex items-center">
-                    {track.audio_path ? (
-                      <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                    ) : (
-                      <span className="text-red-400">Audio unavailable</span>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

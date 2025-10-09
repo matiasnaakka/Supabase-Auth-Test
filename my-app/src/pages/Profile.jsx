@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import NavBar from '../components/NavBar'
-import { supabase } from '../supabaseclient'
+import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import UserProfile from '../components/UserProfile'
 import { useLocation, useNavigate } from 'react-router-dom'
 
@@ -110,7 +110,7 @@ export default function Profile({ session }) {
         const { data: tracksData, error: tracksError } = await supabase
           .from('tracks')
           .select(`
-            id, title, artist, album, audio_path, created_at,
+            id, title, artist, album, audio_path, created_at, image_path,
             genres (name)
           `)
           .eq('user_id', targetUserId)
@@ -183,7 +183,7 @@ export default function Profile({ session }) {
         const { data, error } = await supabase
           .from('tracks')
           .select(`
-            id, title, artist, album, audio_path, created_at, is_public,
+            id, title, artist, album, audio_path, created_at, is_public, image_path,
             genres (name)
           `)
           .eq('user_id', session.user.id)
@@ -405,36 +405,48 @@ export default function Profile({ session }) {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
-                    {ownTracks.map((track) => (
-                      <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white">
-                        <div className="flex flex-col md:flex-row justify-between">
-                          <div>
-                            <h4 className="font-bold text-lg">{track.title}</h4>
-                            <p className="text-gray-300">
-                              {track.artist} {track.album ? `• ${track.album}` : ''}
-                            </p>
-                            <div className="flex gap-2 items-center mt-1 flex-wrap">
-                              <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                                {track.genres ? track.genres.name : 'No genre'}
-                              </span>
-                              <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                                {track.is_public ? 'Public' : 'Private'}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {formatDate(track.created_at)}
-                              </span>
+                    {ownTracks.map((track) => {
+                      const coverSrc =
+                        getPublicStorageUrl('track-images', track.image_path) ||
+                        ownProfile?.avatar_url ||
+                        '/default-avatar.png'
+                      return (
+                        <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
+                          <img
+                            src={coverSrc}
+                            alt={`${track.title} cover`}
+                            className="w-24 h-24 object-cover rounded"
+                            onError={(e) => { e.target.src = ownProfile?.avatar_url || '/default-avatar.png' }}
+                          />
+                          <div className="flex flex-col md:flex-row justify-between flex-1">
+                            <div>
+                              <h4 className="font-bold text-lg">{track.title}</h4>
+                              <p className="text-gray-300">
+                                {track.artist} {track.album ? `• ${track.album}` : ''}
+                              </p>
+                              <div className="flex gap-2 items-center mt-1 flex-wrap">
+                                <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                  {track.genres ? track.genres.name : 'No genre'}
+                                </span>
+                                <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                  {track.is_public ? 'Public' : 'Private'}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {formatDate(track.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
+                              {track.audio_path ? (
+                                <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                              ) : (
+                                <span className="text-red-400">Audio unavailable</span>
+                              )}
                             </div>
                           </div>
-                          <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
-                            {track.audio_path ? (
-                              <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                            ) : (
-                              <span className="text-red-400">Audio unavailable</span>
-                            )}
-                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </>
@@ -520,33 +532,45 @@ export default function Profile({ session }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
-                  {publicTracks.map((track) => (
-                    <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white">
-                      <div className="flex flex-col md:flex-row justify-between">
-                        <div>
-                          <h4 className="font-bold text-lg">{track.title}</h4>
-                          <p className="text-gray-300">
-                            {track.artist} {track.album ? `• ${track.album}` : ''}
-                          </p>
-                          <div className="flex gap-2 items-center mt-1">
-                            <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                              {track.genres ? track.genres.name : 'No genre'}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {formatDate(track.created_at)}
-                            </span>
+                  {publicTracks.map((track) => {
+                    const coverSrc =
+                      getPublicStorageUrl('track-images', track.image_path) ||
+                      publicProfile?.avatar_url ||
+                      '/default-avatar.png'
+                    return (
+                      <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
+                        <img
+                          src={coverSrc}
+                          alt={`${track.title} cover`}
+                          className="w-24 h-24 object-cover rounded"
+                          onError={(e) => { e.target.src = publicProfile?.avatar_url || '/default-avatar.png' }}
+                        />
+                        <div className="flex flex-col md:flex-row justify-between flex-1">
+                          <div>
+                            <h4 className="font-bold text-lg">{track.title}</h4>
+                            <p className="text-gray-300">
+                              {track.artist} {track.album ? `• ${track.album}` : ''}
+                            </p>
+                            <div className="flex gap-2 items-center mt-1">
+                              <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                {track.genres ? track.genres.name : 'No genre'}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {formatDate(track.created_at)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
+                            {track.audio_path ? (
+                              <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                            ) : (
+                              <span className="text-red-400">Audio unavailable</span>
+                            )}
                           </div>
                         </div>
-                        <div className="flex-shrink-0 min-w-[200px] flex items-center mt-3 md:mt-0">
-                          {track.audio_path ? (
-                            <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                          ) : (
-                            <span className="text-red-400">Audio unavailable</span>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </>
