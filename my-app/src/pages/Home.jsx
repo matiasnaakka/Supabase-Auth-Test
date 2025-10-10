@@ -116,6 +116,7 @@ export default function Home({ session }) {
           genres (name)
         `)
         .eq('is_public', true)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(50)
 

@@ -45,6 +45,9 @@ export default function Profile({ session }) {
   const [publicTracks, setPublicTracks] = useState([])
   const [publicLoading, setPublicLoading] = useState(false)
   const [publicError, setPublicError] = useState(null)
+  const [publicPlaylists, setPublicPlaylists] = useState([])
+  const [publicPlaylistsLoading, setPublicPlaylistsLoading] = useState(false)
+  const [publicPlaylistsError, setPublicPlaylistsError] = useState(null)
   const [isFollowing, setIsFollowing] = useState(false)
   const [followLoading, setFollowLoading] = useState(false)
   const [followerCount, setFollowerCount] = useState(0)
@@ -62,6 +65,9 @@ export default function Profile({ session }) {
   const [ownFollowingCount, setOwnFollowingCount] = useState(0)
   const [ownHeaderLoading, setOwnHeaderLoading] = useState(false)
   const [ownHeaderError, setOwnHeaderError] = useState(null)
+  const [ownPlaylists, setOwnPlaylists] = useState([])
+  const [ownPlaylistsLoading, setOwnPlaylistsLoading] = useState(false)
+  const [ownPlaylistsError, setOwnPlaylistsError] = useState(null)
 
   const [showSettings, setShowSettings] = useState(false)
   const [followModal, setFollowModal] = useState({ open: false, type: null, userId: null })
@@ -116,8 +122,18 @@ export default function Profile({ session }) {
           `)
           .eq('user_id', targetUserId)
           .eq('is_public', true)
+          .is('deleted_at', null)
           .order('created_at', { ascending: false })
         if (tracksError) throw tracksError
+
+        setPublicPlaylistsLoading(true)
+        const { data: playlistsData, error: playlistsError } = await supabase
+          .from('playlists')
+          .select('id, title, description, updated_at')
+          .eq('owner', targetUserId)
+          .eq('is_public', true)
+          .order('updated_at', { ascending: false })
+        if (playlistsError) throw playlistsError
 
         const { count: followerCountResult = 0, error: followersError } = await supabase
           .from('followers')
@@ -145,6 +161,7 @@ export default function Profile({ session }) {
         if (isMounted) {
           setPublicProfile(profileData)
           setPublicTracks(tracksData || [])
+          setPublicPlaylists(playlistsData || [])
           setFollowerCount(followerCountResult)
           setPublicFollowingCount(followingCountResult)
           setIsFollowing(userFollows)
@@ -160,7 +177,10 @@ export default function Profile({ session }) {
           setPublicFollowingCount(0)
         }
       } finally {
-        if (isMounted) setPublicLoading(false)
+        if (isMounted) {
+          setPublicLoading(false)
+          setPublicPlaylistsLoading(false)
+        }
       }
     }
 
@@ -173,6 +193,9 @@ export default function Profile({ session }) {
       setOwnTracks([])
       setOwnTracksError(null)
       setOwnTracksLoading(false)
+      setOwnPlaylists([])
+      setOwnPlaylistsError(null)
+      setOwnPlaylistsLoading(false)
       return
     }
 
@@ -180,6 +203,8 @@ export default function Profile({ session }) {
     const fetchOwnTracks = async () => {
       setOwnTracksLoading(true)
       setOwnTracksError(null)
+      setOwnPlaylistsLoading(true)
+      setOwnPlaylistsError(null)
       try {
         const { data, error } = await supabase
           .from('tracks')
@@ -188,6 +213,7 @@ export default function Profile({ session }) {
             genres (name)
           `)
           .eq('user_id', session.user.id)
+          .is('deleted_at', null)
           .order('created_at', { ascending: false })
         if (error) throw error
         if (isMounted) setOwnTracks(data || [])
@@ -198,6 +224,24 @@ export default function Profile({ session }) {
         }
       } finally {
         if (isMounted) setOwnTracksLoading(false)
+      }
+
+      try {
+        const { data: playlistsData, error: playlistsError } = await supabase
+          .from('playlists')
+          .select('id, title, description, is_public, updated_at')
+          .eq('owner', session.user.id)
+          .eq('is_public', true)
+          .order('updated_at', { ascending: false })
+        if (playlistsError) throw playlistsError
+        if (isMounted) setOwnPlaylists(playlistsData || [])
+      } catch (err) {
+        if (isMounted) {
+          setOwnPlaylistsError(err.message)
+          setOwnPlaylists([])
+        }
+      } finally {
+        if (isMounted) setOwnPlaylistsLoading(false)
       }
     }
 
@@ -394,63 +438,91 @@ export default function Profile({ session }) {
                 </div>
 
                 <h3 className="text-2xl font-bold mb-4">Tracks</h3>
-                {ownTracksLoading ? (
-                  <div>Loading your tracks...</div>
-                ) : ownTracksError ? (
-                  <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded">
-                    {ownTracksError}
-                  </div>
-                ) : ownTracks.length === 0 ? (
-                  <div className="text-gray-300 bg-gray-800 p-4 rounded">
-                    You haven't uploaded any tracks yet.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4">
-                    {ownTracks.map((track) => {
-                      const coverSrc =
-                        getPublicStorageUrl('track-images', track.image_path) ||
-                        ownProfile?.avatar_url ||
-                        '/default-avatar.png'
-                      return (
-                        <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
-                          <img
-                            src={coverSrc}
-                            alt={`${track.title} cover`}
-                            className="w-24 h-24 object-cover rounded"
-                            onError={(e) => { e.target.src = ownProfile?.avatar_url || '/default-avatar.png' }}
-                          />
-                          <div className="flex flex-col md:flex-row justify-between flex-1">
-                            <div>
-                              <h4 className="font-bold text-lg">{track.title}</h4>
-                              <p className="text-gray-300">
-                                {track.artist} {track.album ? `• ${track.album}` : ''}
-                              </p>
-                              <div className="flex gap-2 items-center mt-1 flex-wrap">
-                                <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                                  {track.genres ? track.genres.name : 'No genre'}
-                                </span>
-                                <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                                  {track.is_public ? 'Public' : 'Private'}
-                                </span>
-                                <span className="text-xs text-gray-400">
-                                  {formatDate(track.created_at)}
-                                </span>
+                <div className="flex flex-col lg:flex-row gap-6">
+                  <div className="flex-1">
+                    {ownTracksLoading ? (
+                      <div>Loading your tracks...</div>
+                    ) : ownTracksError ? (
+                      <div className="bg-red-500 bg-opacity-25 text-red-100 p-3 rounded">
+                        {ownTracksError}
+                      </div>
+                    ) : ownTracks.length === 0 ? (
+                      <div className="text-gray-300 bg-gray-800 p-4 rounded">
+                        You haven't uploaded any tracks yet.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-4">
+                        {ownTracks.map((track) => {
+                          const coverSrc =
+                            getPublicStorageUrl('track-images', track.image_path) ||
+                            ownProfile?.avatar_url ||
+                            '/default-avatar.png'
+                          return (
+                            <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
+                              <img
+                                src={coverSrc}
+                                alt={`${track.title} cover`}
+                                className="w-24 h-24 object-cover rounded"
+                                onError={(e) => { e.target.src = ownProfile?.avatar_url || '/default-avatar.png' }}
+                              />
+                              <div className="flex flex-col md:flex-row justify-between flex-1">
+                                <div>
+                                  <h4 className="font-bold text-lg">{track.title}</h4>
+                                  <p className="text-gray-300">
+                                    {track.artist} {track.album ? `• ${track.album}` : ''}
+                                  </p>
+                                  <div className="flex gap-2 items-center mt-1 flex-wrap">
+                                    <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                      {track.genres ? track.genres.name : 'No genre'}
+                                    </span>
+                                    <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                      {track.is_public ? 'Public' : 'Private'}
+                                    </span>
+                                    <span className="text-xs text-gray-400">
+                                      {formatDate(track.created_at)}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
+                                  {track.audio_path ? (
+                                    <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                                  ) : (
+                                    <span className="text-red-400">Audio unavailable</span>
+                                  )}
+                                  <AddToPlaylist session={session} track={track} />
+                                </div>
                               </div>
                             </div>
-                            <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
-                              {track.audio_path ? (
-                                <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                              ) : (
-                                <span className="text-red-400">Audio unavailable</span>
-                              )}
-                              <AddToPlaylist session={session} track={track} />
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
+                  <aside className="lg:w-72 bg-gray-900 bg-opacity-80 p-4 rounded">
+                    <h4 className="text-xl font-semibold mb-3">Public playlists</h4>
+                    {ownPlaylistsLoading ? (
+                      <div className="text-gray-400 text-sm">Loading playlists...</div>
+                    ) : ownPlaylistsError ? (
+                      <div className="text-red-400 text-sm">{ownPlaylistsError}</div>
+                    ) : ownPlaylists.length === 0 ? (
+                      <div className="text-gray-400 text-sm">No public playlists yet.</div>
+                    ) : (
+                      <ul className="space-y-3 text-sm">
+                        {ownPlaylists.map((playlist) => (
+                          <li key={playlist.id} className="bg-gray-800 px-3 py-2 rounded">
+                            <p className="text-white font-semibold">{playlist.title}</p>
+                            {playlist.description && (
+                              <p className="text-gray-400 text-xs mt-1 line-clamp-2">{playlist.description}</p>
+                            )}
+                            <p className="text-gray-500 text-xs mt-1">
+                              Updated {new Date(playlist.updated_at).toLocaleDateString()}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </aside>
+                </div>
               </>
             )}
           </div>
@@ -528,54 +600,82 @@ export default function Profile({ session }) {
               </div>
 
               <h3 className="text-2xl font-bold mb-4">Tracks</h3>
-              {publicTracks.length === 0 ? (
-                <div className="text-gray-300 bg-gray-800 p-4 rounded">
-                  No public tracks yet.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  {publicTracks.map((track) => {
-                    const coverSrc =
-                      getPublicStorageUrl('track-images', track.image_path) ||
-                      publicProfile?.avatar_url ||
-                      '/default-avatar.png'
-                    return (
-                      <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
-                        <img
-                          src={coverSrc}
-                          alt={`${track.title} cover`}
-                          className="w-24 h-24 object-cover rounded"
-                          onError={(e) => { e.target.src = publicProfile?.avatar_url || '/default-avatar.png' }}
-                        />
-                        <div className="flex flex-col md:flex-row justify-between flex-1">
-                          <div>
-                            <h4 className="font-bold text-lg">{track.title}</h4>
-                            <p className="text-gray-300">
-                              {track.artist} {track.album ? `• ${track.album}` : ''}
-                            </p>
-                            <div className="flex gap-2 items-center mt-1">
-                              <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
-                                {track.genres ? track.genres.name : 'No genre'}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {formatDate(track.created_at)}
-                              </span>
+              <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex-1">
+                  {publicTracks.length === 0 ? (
+                    <div className="text-gray-300 bg-gray-800 p-4 rounded">
+                      No public tracks yet.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {publicTracks.map((track) => {
+                        const coverSrc =
+                          getPublicStorageUrl('track-images', track.image_path) ||
+                          publicProfile?.avatar_url ||
+                          '/default-avatar.png'
+                        return (
+                          <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
+                            <img
+                              src={coverSrc}
+                              alt={`${track.title} cover`}
+                              className="w-24 h-24 object-cover rounded"
+                              onError={(e) => { e.target.src = publicProfile?.avatar_url || '/default-avatar.png' }}
+                            />
+                            <div className="flex flex-col md:flex-row justify-between flex-1">
+                              <div>
+                                <h4 className="font-bold text-lg">{track.title}</h4>
+                                <p className="text-gray-300">
+                                  {track.artist} {track.album ? `• ${track.album}` : ''}
+                                </p>
+                                <div className="flex gap-2 items-center mt-1">
+                                  <span className="bg-gray-700 px-2 py-0.5 text-xs rounded">
+                                    {track.genres ? track.genres.name : 'No genre'}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    {formatDate(track.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
+                                {track.audio_path ? (
+                                  <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                                ) : (
+                                  <span className="text-red-400">Audio unavailable</span>
+                                )}
+                                <AddToPlaylist session={session} track={track} />
+                              </div>
                             </div>
                           </div>
-                          <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
-                            {track.audio_path ? (
-                              <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
-                            ) : (
-                              <span className="text-red-400">Audio unavailable</span>
-                            )}
-                            <AddToPlaylist session={session} track={track} />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
+                <aside className="lg:w-72 bg-gray-900 bg-opacity-80 p-4 rounded">
+                  <h4 className="text-xl font-semibold mb-3">Public playlists</h4>
+                  {publicPlaylistsLoading ? (
+                    <div className="text-gray-400 text-sm">Loading playlists...</div>
+                  ) : publicPlaylistsError ? (
+                    <div className="text-red-400 text-sm">{publicPlaylistsError}</div>
+                  ) : publicPlaylists.length === 0 ? (
+                    <div className="text-gray-400 text-sm">No public playlists yet.</div>
+                  ) : (
+                    <ul className="space-y-3 text-sm">
+                      {publicPlaylists.map((playlist) => (
+                        <li key={playlist.id} className="bg-gray-800 px-3 py-2 rounded">
+                          <p className="text-white font-semibold">{playlist.title}</p>
+                          {playlist.description && (
+                            <p className="text-gray-400 text-xs mt-1 line-clamp-2">{playlist.description}</p>
+                          )}
+                          <p className="text-gray-500 text-xs mt-1">
+                            Updated {new Date(playlist.updated_at).toLocaleDateString()}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </aside>
+              </div>
             </>
           )}
         </div>

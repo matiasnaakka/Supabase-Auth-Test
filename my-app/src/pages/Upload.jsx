@@ -127,6 +127,7 @@ export default function Upload({ session }) {
           )
         `)
         .eq('user_id', session.user.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
       
       if (error) {
@@ -348,48 +349,26 @@ export default function Upload({ session }) {
       return
     }
     
-    // 2. Delete the record from the tracks table
-    const { error: deleteError } = await supabase
+    // 2. Soft-delete the record from the tracks table
+    const { error: updateError } = await supabase
       .from('tracks')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', trackId)
-    
-    if (deleteError) {
-      setError(deleteError.message)
+      .eq('user_id', session.user.id)
+
+    if (updateError) {
+      setError(updateError.message)
       setLoading(false)
       return
     }
-    
-    // 3. Delete the file from storage using the path directly
-    try {
-      console.log('Deleting file from path:', trackData.audio_path)
-      
-      const { data, error } = await supabase.storage
-        .from('audio')
-        .remove([trackData.audio_path])
-        
-      console.log('Storage delete response:', { data, error })
-      
-      if (error) {
-        console.error('Error deleting file from storage:', error)
-      }
-    } catch (err) {
-      console.error('Could not delete file from storage:', err)
-    }
-    
-    // 4. Delete the cover image if it exists
-    try {
-      if (trackData.image_path) {
-        await supabase.storage.from('track-images').remove([trackData.image_path])
-      }
-    } catch (err) {
-      console.error('Could not delete image from storage:', err)
-    }
-    
+
+    // 3. Skip physical storage removal for soft-deleted tracks
+    // ...existing code removed...
+
     // 5. Refresh tracks list
     fetchUserTracks()
     setLoading(false)
-    setSuccess('Track deleted successfully!')
+    setSuccess('Track archived successfully!')
   }
   
   const handleSignOut = async () => {
