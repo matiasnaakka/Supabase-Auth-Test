@@ -5,37 +5,7 @@ import UserProfile from '../components/UserProfile'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AddToPlaylist from '../components/AddToPlaylist'
 
-const SignedAudioPlayer = ({ audioPath, trackId }) => {
-  const [signedUrl, setSignedUrl] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let isMounted = true
-    const getUrl = async () => {
-      try {
-        const { data, error } = await supabase.storage
-          .from('audio')
-          .createSignedUrl(audioPath, 300)
-        if (error) throw error
-        if (isMounted) setSignedUrl(data.signedUrl)
-      } catch (err) {
-        if (isMounted) setError(err.message)
-      }
-    }
-
-    if (audioPath) {
-      getUrl()
-    }
-
-    return () => { isMounted = false }
-  }, [audioPath, trackId])
-
-  if (error) return <span className="text-red-400 text-xs">Audio unavailable</span>
-  if (!signedUrl) return <span className="text-gray-400 text-xs">Loading audio...</span>
-  return <audio controls src={signedUrl} className="h-8 max-w-full" />
-}
-
-export default function Profile({ session }) {
+export default function Profile({ session, player }) {
   const location = useLocation()
   const navigate = useNavigate()
   const searchParams = new URLSearchParams(location.search)
@@ -457,6 +427,24 @@ export default function Profile({ session }) {
                             getPublicStorageUrl('track-images', track.image_path) ||
                             ownProfile?.avatar_url ||
                             '/default-avatar.png'
+                          const isActive = player?.currentTrack?.id === track.id
+                          const isBusy = isActive && player?.loading
+                          const canPlay = Boolean(track.audio_path)
+                          const playbackLabel = isActive
+                            ? isBusy
+                              ? 'Loading...'
+                              : player?.isPlaying
+                                ? 'Pause'
+                                : 'Resume'
+                            : 'Play'
+                          const handlePlayback = () => {
+                            if (!player || !canPlay) return
+                            if (isActive) {
+                              player.isPlaying ? player.pause() : player.resume()
+                            } else {
+                              player.playTrack(track)
+                            }
+                          }
                           return (
                             <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
                               <img
@@ -484,8 +472,22 @@ export default function Profile({ session }) {
                                   </div>
                                 </div>
                                 <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
-                                  {track.audio_path ? (
-                                    <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                                  {canPlay ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={handlePlayback}
+                                        disabled={isBusy}
+                                        className="bg-teal-500 text-black px-3 py-1 rounded text-sm font-semibold hover:bg-teal-400 disabled:opacity-60"
+                                      >
+                                        {playbackLabel}
+                                      </button>
+                                      {isActive && player?.error && !player.loading && (
+                                        <span className="max-w-[140px] truncate text-xs text-red-400">
+                                          {player.error}
+                                        </span>
+                                      )}
+                                    </>
                                   ) : (
                                     <span className="text-red-400">Audio unavailable</span>
                                   )}
@@ -613,6 +615,24 @@ export default function Profile({ session }) {
                           getPublicStorageUrl('track-images', track.image_path) ||
                           publicProfile?.avatar_url ||
                           '/default-avatar.png'
+                        const isActive = player?.currentTrack?.id === track.id
+                        const isBusy = isActive && player?.loading
+                        const canPlay = Boolean(track.audio_path)
+                        const playbackLabel = isActive
+                          ? isBusy
+                            ? 'Loading...'
+                            : player?.isPlaying
+                              ? 'Pause'
+                              : 'Resume'
+                          : 'Play'
+                        const handlePlayback = () => {
+                          if (!player || !canPlay) return
+                          if (isActive) {
+                            player.isPlaying ? player.pause() : player.resume()
+                          } else {
+                            player.playTrack(track)
+                          }
+                        }
                         return (
                           <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded text-white flex gap-4">
                             <img
@@ -637,8 +657,22 @@ export default function Profile({ session }) {
                                 </div>
                               </div>
                               <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2 mt-3 md:mt-0">
-                                {track.audio_path ? (
-                                  <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                                {canPlay ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={handlePlayback}
+                                      disabled={isBusy}
+                                      className="bg-teal-500 text-black px-3 py-1 rounded text-sm font-semibold hover:bg-teal-400 disabled:opacity-60"
+                                    >
+                                      {playbackLabel}
+                                    </button>
+                                    {isActive && player?.error && !player.loading && (
+                                      <span className="max-w-[140px] truncate text-xs text-red-400">
+                                        {player.error}
+                                      </span>
+                                    )}
+                                  </>
                                 ) : (
                                   <span className="text-red-400">Audio unavailable</span>
                                 )}

@@ -3,56 +3,12 @@ import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import NavBar from '../components/NavBar'
 import AddToPlaylist from '../components/AddToPlaylist'
 
-// Create SignedAudioPlayer component
-const SignedAudioPlayer = ({ audioPath, trackId }) => {
-  const [signedUrl, setSignedUrl] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let isMounted = true
-    const getUrl = async () => {
-      try {
-        const { data, error } = await supabase.storage
-          .from('audio')
-          .createSignedUrl(audioPath, 300) // 5 min expiry
-
-        if (error) throw error
-        
-        if (isMounted) {
-          setSignedUrl(data.signedUrl)
-        }
-      } catch (err) {
-        console.error(`Error signing URL for track ${trackId}:`, err.message)
-        if (isMounted) {
-          setError(err.message)
-        }
-      }
-    }
-    
-    getUrl()
-    
-    return () => { isMounted = false }
-  }, [audioPath, trackId])
-
-  if (error) return <span className="text-red-400">Error: {error}</span>
-  if (!signedUrl) return <span className="text-gray-400">Loading...</span>
-
-  return (
-    <audio
-      controls
-      src={signedUrl}
-      className="h-8 max-w-full"
-      onError={(e) => console.error(`Error loading audio for ${trackId}`, e)}
-    />
-  )
-}
-
 const sanitizeFileName = (name) => {
   if (!name) return `file-${Date.now()}`
   return name.replace(/[^a-z0-9.\-_]/gi, '').replace(/\s+/g, '-').toLowerCase()
 }
 
-export default function Upload({ session }) {
+export default function Upload({ session, player }) {
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [genreId, setGenreId] = useState(null)
@@ -375,11 +331,6 @@ export default function Upload({ session }) {
     await supabase.auth.signOut()
   }
   
-  // Add this new function to handle audio errors
-  const handleAudioError = (event, trackId) => {
-    console.error(`Error loading audio for track ${trackId}:`, event)
-  }
-  
   return (
     <div className="min-h-screen bg-black text-white">
       <NavBar session={session} onSignOut={handleSignOut} />
@@ -508,6 +459,24 @@ export default function Upload({ session }) {
                 getPublicStorageUrl('track-images', track.image_path) ||
                 profileAvatarUrl ||
                 '/default-avatar.png'
+              const isActive = player?.currentTrack?.id === track.id
+              const isBusy = isActive && player?.loading
+              const canPlay = Boolean(track.audio_path)
+              const playbackLabel = isActive
+                ? isBusy
+                  ? 'Loading...'
+                  : player?.isPlaying
+                    ? 'Pause'
+                    : 'Resume'
+                : 'Play'
+              const handlePlayback = () => {
+                if (!player || !canPlay) return
+                if (isActive) {
+                  player.isPlaying ? player.pause() : player.resume()
+                } else {
+                  player.playTrack(track)
+                }
+              }
               return (
                 <div key={track.id} className="bg-gray-800 p-4 rounded flex flex-col md:flex-row gap-4">
                   <img
@@ -529,8 +498,22 @@ export default function Upload({ session }) {
                     </div>
                     <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto md:items-end">
                       <div className="flex gap-2 w-full md:w-auto">
-                        {track.audio_path ? (
-                          <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                        {canPlay ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handlePlayback}
+                              disabled={isBusy}
+                              className="bg-teal-500 text-black px-3 py-1 rounded text-sm font-semibold hover:bg-teal-400 disabled:opacity-60"
+                            >
+                              {playbackLabel}
+                            </button>
+                            {isActive && player?.error && !player.loading && (
+                              <span className="max-w-[140px] truncate text-xs text-red-400">
+                                {player.error}
+                              </span>
+                            )}
+                          </>
                         ) : (
                           <span className="text-red-400">Audio unavailable</span>
                         )}

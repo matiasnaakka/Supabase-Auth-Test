@@ -4,51 +4,7 @@ import { supabase, getPublicStorageUrl } from '../supabaseclient'
 import NavBar from '../components/NavBar'
 import AddToPlaylist from '../components/AddToPlaylist'
 
-// Reuse the SignedAudioPlayer from Upload.jsx
-const SignedAudioPlayer = ({ audioPath, trackId }) => {
-  const [signedUrl, setSignedUrl] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    let isMounted = true
-    const getUrl = async () => {
-      try {
-        const { data, error } = await supabase.storage
-          .from('audio')
-          .createSignedUrl(audioPath, 300) // 5 min expiry
-
-        if (error) throw error
-        
-        if (isMounted) {
-          setSignedUrl(data.signedUrl)
-        }
-      } catch (err) {
-        console.error(`Error signing URL for track ${trackId}:`, err.message)
-        if (isMounted) {
-          setError(err.message)
-        }
-      }
-    }
-    
-    getUrl()
-    
-    return () => { isMounted = false }
-  }, [audioPath, trackId])
-
-  if (error) return <span className="text-red-400">Error: {error}</span>
-  if (!signedUrl) return <span className="text-gray-400">Loading...</span>
-
-  return (
-    <audio
-      controls
-      src={signedUrl}
-      className="h-8 max-w-full"
-      onError={(e) => console.error(`Error loading audio for ${trackId}`, e)}
-    />
-  )
-}
-
-export default function Home({ session }) {
+export default function Home({ session, player }) {
   const [tracks, setTracks] = useState([])
   const [filteredTracks, setFilteredTracks] = useState([])
   const [genres, setGenres] = useState([])
@@ -57,12 +13,18 @@ export default function Home({ session }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [displayName, setDisplayName] = useState('user')
+  const [ownPlaylists, setOwnPlaylists] = useState([])
+  const [ownPlaylistsLoading, setOwnPlaylistsLoading] = useState(false)
+  const [ownPlaylistsError, setOwnPlaylistsError] = useState(null)
 
   // Fetch tracks and genres on component mount
   useEffect(() => {
     fetchGenres()
     fetchTracks()
-  }, [])
+    if (session?.user?.id) {
+      fetchOwnPlaylists(session.user.id)
+    }
+  }, [session?.user?.id])
 
   // Fetch display name (username) of the logged-in user
   useEffect(() => {
@@ -133,6 +95,27 @@ export default function Home({ session }) {
     }
   }
 
+  const fetchOwnPlaylists = async (userId) => {
+    setOwnPlaylistsLoading(true)
+    setOwnPlaylistsError(null)
+    try {
+      const { data, error } = await supabase
+        .from('playlists')
+        .select('id, title, description, is_public, updated_at')
+        .eq('owner', userId)
+        .order('updated_at', { ascending: false })
+        .limit(10)
+
+      if (error) throw error
+      setOwnPlaylists(data || [])
+    } catch (err) {
+      setOwnPlaylists([])
+      setOwnPlaylistsError(err.message)
+    } finally {
+      setOwnPlaylistsLoading(false)
+    }
+  }
+
   // Filter tracks when genre selection changes (now supports multi-select)
   useEffect(() => {
     if (selectedGenreIds.length > 0) {
@@ -170,6 +153,32 @@ export default function Home({ session }) {
       <NavBar session={session} onSignOut={handleSignOut} />
       <div className="max-w-5xl mx-auto mt-16 p-6">
         <h1 className="text-3xl font-bold mb-6 text-white">Welcome, {displayName}</h1>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-3 text-white">Your playlists</h2>
+          {ownPlaylistsLoading ? (
+            <div className="text-sm text-gray-400 bg-gray-800 px-3 py-2 rounded">Loading playlists...</div>
+          ) : ownPlaylistsError ? (
+            <div className="text-sm text-red-400 bg-red-500/20 px-3 py-2 rounded">{ownPlaylistsError}</div>
+          ) : ownPlaylists.length === 0 ? (
+            <div className="text-sm text-gray-400 bg-gray-800 px-3 py-2 rounded">Create a playlist to see it here.</div>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {ownPlaylists.map((playlist) => (
+                <li key={playlist.id} className="bg-gray-800 px-3 py-2 rounded">
+                  <p className="text-white font-semibold truncate">{playlist.title}</p>
+                  {playlist.description && (
+                    <p className="text-xs text-gray-400 line-clamp-2 mt-1">{playlist.description}</p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">
+                    {playlist.is_public ? 'Public' : 'Private'} • Updated{' '}
+                    {new Date(playlist.updated_at).toLocaleDateString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-3 text-white">Filter by Genre</h2>
@@ -255,6 +264,24 @@ export default function Home({ session }) {
                 getPublicStorageUrl('track-images', track.image_path) ||
                 track.profiles?.avatar_url ||
                 '/default-avatar.png'
+              const isActive = player?.currentTrack?.id === track.id
+              const isBusy = isActive && player?.loading
+              const canPlay = Boolean(track.audio_path)
+              const playbackLabel = isActive
+                ? isBusy
+                  ? 'Loading...'
+                  : player?.isPlaying
+                    ? 'Pause'
+                    : 'Resume'
+                : 'Play'
+              const handlePlayback = () => {
+                if (!player || !canPlay) return
+                if (isActive) {
+                  player.isPlaying ? player.pause() : player.resume()
+                } else {
+                  player.playTrack(track)
+                }
+              }
               return (
                 <div key={track.id} className="bg-gray-800 bg-opacity-80 p-4 rounded shadow-lg text-white flex gap-4">
                   <img
@@ -297,8 +324,22 @@ export default function Home({ session }) {
                     </div>
                     
                     <div className="flex-shrink-0 min-w-[200px] flex items-center gap-2">
-                      {track.audio_path ? (
-                        <SignedAudioPlayer audioPath={track.audio_path} trackId={track.id} />
+                      {canPlay ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handlePlayback}
+                            disabled={isBusy}
+                            className="bg-teal-500 text-black px-3 py-1 rounded text-sm font-semibold hover:bg-teal-400 disabled:opacity-60"
+                          >
+                            {playbackLabel}
+                          </button>
+                          {isActive && player?.error && !player.loading && (
+                            <span className="max-w-[140px] truncate text-xs text-red-400">
+                              {player.error}
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <span className="text-red-400">Audio unavailable</span>
                       )}

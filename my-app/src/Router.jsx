@@ -10,7 +10,7 @@ import LoginLayout from './components/LoginLayout'
 import Profile from './pages/Profile'
 import Upload from './pages/Upload'
 
-const Routing = () => {
+const Routing = ({ player }) => {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -33,6 +33,12 @@ const Routing = () => {
     return () => subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (!loading && !session) {
+      player?.stop?.()
+    }
+  }, [loading, session, player])
+
   return (
     <BrowserRouter>
       <Routes>
@@ -54,7 +60,7 @@ const Routing = () => {
           path="/home"
           element={
             <ProtectedRoute session={session} loading={loading}>
-              <Home session={session} />
+              <Home session={session} player={player} />
             </ProtectedRoute>
           }
         />
@@ -62,7 +68,7 @@ const Routing = () => {
           path="/profile"
           element={
             <ProtectedRoute session={session} loading={loading}>
-              <Profile session={session} />
+              <Profile session={session} player={player} />
             </ProtectedRoute>
           }
         />
@@ -70,7 +76,7 @@ const Routing = () => {
           path="/upload"
           element={
             <ProtectedRoute session={session} loading={loading}>
-              <Upload session={session} />
+              <Upload session={session} player={player} />
             </ProtectedRoute>
           }
         />
